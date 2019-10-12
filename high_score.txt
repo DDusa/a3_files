@@ -1,0 +1,8 @@
+aa,0
+as,0
+asda,1
+oa,0
+asd,0
+sadvx,1
+,1
+,1

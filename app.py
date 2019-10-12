@@ -8,6 +8,7 @@ __version__ = "1.1.0"
 __copyright__ = "The University of Queensland, 2019"
 
 import math
+import sys
 import tkinter as tk
 
 from typing import Tuple, List
@@ -26,7 +27,6 @@ from game.view import GameView, ViewRenderer
 from game.world import World
 
 
-
 from level import load_world, WorldBuilder
 from player import Player
 
@@ -34,12 +34,12 @@ BLOCK_SIZE = 2 ** 4
 MAX_WINDOW_SIZE = (1080, math.inf)
 
 MARIO_VEL = {
-    "vx": 200,
+    "vx": 100,
     "vy": -200
 }
 
 GOAL_SIZES = {
-    "flag": (0.2, 9),
+    "flag": (2, 9),
     "tunnel": (2, 2)
 }
 
@@ -49,20 +49,20 @@ BLOCKS = {
     '?': 'mystery_empty',
     '$': 'mystery_coin',
     'b': "bounce_block",
-    '^': 'cube'
+    '^': 'cube',
+    'I': "flag",
+    '=': "tunnel",
+    'S': "switch"
 }
 
 ITEMS = {
-    'C': 'coin'
+    'C': 'coin',
+    '*': "star"
 }
 
 MOBS = {
     '&': "cloud",
-    '@': "mushroom",
-    '*': "star",
-    'I': "flag",
-    '=': "tunnel",
-    'S': "switch",
+    '@': "mushroom"
 
 }
 
@@ -149,49 +149,24 @@ BLOCK_IMAGES = {
     "brick": "brick",
     "brick_base": "brick_base",
     "cube": "cube",
-    "bounce_block": "bounce_block"
+    "bounce_block": "bounce_block" ,
+    "flag": "flag",
+    "tunnel": "tunnel",
+    "switch": "switch"
 }
 
 ITEM_IMAGES = {
-    "coin": "coin_item"
+    "coin": "coin_item",
+    "star": "star"
 }
 
 MOB_IMAGES = {
     "cloud": "floaty",
     "fireball": "fireball_down",
     "mushroom": "mushroom",
-    "star": "star",
-    "flag": "flag",
-    "tunnel": "tunnel",
-    "switch": "switch"
 }
 
 
-class MarioViewRenderer(ViewRenderer):
-    """A customised view renderer for a game of mario."""
-
-    @ViewRenderer.draw.register(Player)
-    def _draw_player(self, instance: Player, shape: pymunk.Shape,
-                     view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
-
-        if shape.body.velocity.x >= 0:
-            image = self.load_image("mario_right")
-        else:
-            image = self.load_image("mario_left")
-
-        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
-                                  image=image, tags="player")]
-
-    @ViewRenderer.draw.register(MysteryBlock)
-    def _draw_mystery_block(self, instance: MysteryBlock, shape: pymunk.Shape,
-                            view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
-        if instance.is_active():
-            image = self.load_image("coin")
-        else:
-            image = self.load_image("coin_used")
-
-        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
-                                  image=image, tags="block")]
 
 
 class MarioApp:
@@ -207,14 +182,22 @@ class MarioApp:
         """
         self._master = master
 
-        world_builder = WorldBuilder(BLOCK_SIZE, gravity=(0, 300), fallback=create_unknown)
+        # Wait for window to update before continuing
+        master.update_idletasks()
+
+        #Ask for loading configuration
+        self.load_config()
+        self.status_var_config()
+
+        world_builder = WorldBuilder(BLOCK_SIZE, gravity=(0, self.configuration["gravity"]), fallback=create_unknown)
         world_builder.register_builders(BLOCKS.keys(), create_block)
         world_builder.register_builders(ITEMS.keys(), create_item)
         world_builder.register_builders(MOBS.keys(), create_mob)
         self._builder = world_builder
 
-        self._player = Player(max_health=5)
-        self.reset_world('level1.txt')
+        self._level = self.configuration["start"]
+        self._player = Player(max_health=self.configuration["health"])
+        self.reset_world(self._level)
 
         self._renderer = MarioViewRenderer(BLOCK_IMAGES, ITEM_IMAGES, MOB_IMAGES)
 
@@ -224,24 +207,157 @@ class MarioApp:
 
         self.bind()
 
+
         #Create the title and menu
         master.title("Mario")
         self.menu()
-        self._status_bar = StatusBar(master,score = self._player.get_score(),
-                                    health = self._player.get_health())
+        self._status_bar = StatusBar(master, self._player)
 
-        # Wait for window to update before continuing
-        master.update_idletasks()
+
         self.step()
+
+    def status_var_config(self):
+        self._pause = False
+        self._exit = False
+        self.pressed_swtich_list = []
+        self.invisible_list = []
+
+    def load_config(self):
+        config_filename = filedialog.askopenfilename()
+        try:
+            self.file_content = open(config_filename, "r").readlines()
+        except:
+            self.configuration_error('missing')
+        line_index = 0
+
+        self.configuration = {}
+
+        for line_content in self.file_content:
+            self.find_in_line_and_config(line_content, "gravity", int)
+            self.find_in_line_and_config(line_content, "start", str)
+            self.find_in_line_and_config(line_content, "x", int)
+            self.find_in_line_and_config(line_content, "y", int)
+            self.find_in_line_and_config(line_content, "mass", int)
+            self.find_in_line_and_config(line_content, "health", int)
+            self.find_in_line_and_config(line_content, "max_velocity", int)
+
+        self.check_config("gravity", "start", "x",
+                          "y","mass", "health",
+                          "max_velocity", "start")
+
+    def check_config(self, *args):
+
+        for key_name in args:
+            if key_name not in self.configuration:
+                self.configuration_error('invalid')
+
+    def find_in_line_and_config(self,line_content, string_to_find_, val_type, ):
+        index = line_content.find(":")
+        if string_to_find_ == line_content[0: index].strip():
+            try:
+                self.configuration[string_to_find_] = val_type(line_content[index + 1:].strip())
+            except:
+                self.configuration_error('cannot be parsed')
+            return True
+        else:
+            return False
+
+    def configuration_error(self, error):
+        if error == 'missing':
+            messagebox.showinfo("CONFIGURE ERROR","Configuration missing!")
+        if error == 'invalid':
+            messagebox.showinfo("CONFIGURE ERROR","Configuration invalid!")
+        if error == 'cannot be parsed':
+            messagebox.showinfo("CONFIGURE ERROR","Configuration cannot be parsed!")
+        exit(0)
 
     def menu(self):
         menubar = tk.Menu(self._master)
         self._master.config(menu=menubar)
+
         filemenu = tk.Menu(menubar)
         menubar.add_cascade(label="File", menu=filemenu)
-        filemenu.add_command(label="Load Level", command=self.load_window)
+        filemenu.add_command(label="Load Level", command=self.load_level)
         filemenu.add_command(label="Reset Level", command=self.reset_level)
+        filemenu.add_command(label="High Score", command=self.read_highscore)
         filemenu.add_command(label="Exit", command=self.exit)
+
+        gamemenu = tk.Menu(menubar)
+        menubar.add_cascade(label="Game", menu=gamemenu)
+        gamemenu.add_command(label="Pause", command=self.pause)
+        gamemenu.add_command(label="Continue", command=self.resume)
+
+    def write_highscore(self):
+        self.pause()
+        self.top1 = tk.Toplevel()
+        self.top1.title("Enter ur name for highscore!")
+        label = tk.Label(self.top1, text='Your name: ')
+        label.pack(side=tk.LEFT)
+        self.highscore_entry = tk.Entry(self.top1, width=20)
+        self.highscore_entry.pack(side=tk.LEFT)
+
+        enter = tk.Button(self.top1, text="Enter", command=self.enter)
+        enter.pack(side=tk.LEFT)
+
+        self.top1.bind('<Return>', self.enter)
+        self.top1.protocol("WM_DELETE_WINDOW", self.top1_on_closing)
+        
+    def top1_on_closing(self):
+        if messagebox.askokcancel("Record not saving!", "Leave without saving?"):
+            self.resume()
+            self.top1.destroy()
+        else:
+            self.top1.destroy()
+            self.write_highscore()
+
+    def enter(self, event = None):
+        highscore = open( self._last_level + "high_score.txt", "a+")
+        name = self.highscore_entry.get()
+        score = str(self._player.get_score())
+        record = name + ',' + score + '\n'
+        self.top1.destroy()
+        highscore.write(record)
+        self.resume()
+
+    def pause(self):
+        self._pause = True
+
+    def resume(self):
+        self._pause = False
+
+    def read_highscore(self):
+        high_score_list = []
+        text_to_show = 'rank        name        score\n'
+        num_of_record = 0
+        try:
+            highscore = open(self._level + "high_score.txt", "r+")
+        except IOError:
+            highscore = []
+        for line in highscore:
+            high_score_list.append(line.rstrip().split(","))
+            num_of_record += 1
+        high_score_list.sort(key=lambda x: int(x[1]), reverse= True)
+        if num_of_record >= 10:
+            for i in range(0,10):
+                text_to_show += (str(i)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
+        else:
+            for i in range(0, num_of_record):
+                text_to_show += (str(i)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
+        self.top2 = tk.Toplevel()
+        self.top2.title("Leaderboard")
+
+        record =  tk.Text(self.top2, height=10, width=30)
+        record.insert(tk.END, text_to_show)
+        record.pack(side=tk.LEFT)
+        self.pause()
+        self.top2.protocol("WM_DELETE_WINDOW", self.top2_on_closing)
+
+    def top2_on_closing(self):
+        self.resume()
+        self.top2.destroy()
+
+    def takeScore(self, high_score_list):
+        return int(high_score_list[1])
 
     def reset_world(self, new_level="level1.txt"):
         self._world = load_world(self._builder, new_level)
@@ -255,12 +371,12 @@ class MarioApp:
         self._master.bind("<Key>", self._move_event)
 
     def _move_event(self, event):
-        if event.keysym == 'Right' or event.keysym == 'r':
+        if event.keysym == 'Right' or event.keysym == 'r'or event.keysym == 'd':
             vx = MARIO_VEL['vx']
             vy = self._player.get_velocity()[1]
             self._move(vx, vy)
             print('r')
-        elif event.keysym == 'Left' or event.keysym == 'l':
+        elif event.keysym == 'Left' or event.keysym == 'l' or event.keysym == 'a':
             vx = -MARIO_VEL['vx']
             vy = self._player.get_velocity()[1]
             self._move(vx, vy)
@@ -272,23 +388,21 @@ class MarioApp:
             self._duck()
             print('d')
 
-    def load_window(self):
+    def load_level(self, filename = None, resetplayer = True):
+        if not filename:
+            filename = filedialog.askopenfilename()
+        if filename == "END":
+            messagebox.showinfo("CONGRATULATIONS", "You won the game!")
+            self.exit()
+        else:
+            self._last_level = self._level
+            self._level = filename
+            self.reset_level(resetplayer)
 
-        self.load_input = tk.Entry(self._master, width=20)
-        self.load_input.pack()
-        self.load_button = tk.Button(self._master, text="Load", command=self.load_level)
-        self.load_button.pack()
-
-    def load_level(self):
-        filename = self.load_input.get()
-        self.reset_level(filename)
-
-        self.load_input.destroy()
-        self.load_button.destroy()
-
-    def reset_level(self, new_level="level1.txt"):
-        self._player = Player(max_health=5)
-        self.reset_world(new_level)
+    def reset_level(self, resetplayer = True):
+        if resetplayer:
+            self._player = Player(max_health=5)
+        self.reset_world(self._level)
 
     def dead_ask_reset(self):
         if self._player.is_dead():
@@ -296,12 +410,12 @@ class MarioApp:
                                             title="You are dead!",
                                             message="Would you like to restart the level?")
              if reply == messagebox.YES :
-                 self.reset_level() # can_close is already True.
+                 self.reset_level()
              elif reply == messagebox.NO :
                  self.exit()
 
     def exit(self):
-        self._master.destroy()
+        self._exit = True
 
     def redraw(self):
         """Redraw all the entities in the game canvas."""
@@ -331,14 +445,22 @@ class MarioApp:
 
     def step(self):
         """Step the world physics and redraw the canvas."""
-        data = (self._world, self._player)
-        self._world.step(data)
 
-        self._status_bar.update_status(self._player.get_health(), self._player.get_score())
-        self.dead_ask_reset()
 
-        self.scroll()
-        self.redraw()
+        if self._pause == True:
+            pass
+        else:
+            data = (self._world, self._player)
+            self._world.step(data)
+            self._status_bar.update_status(self._player)
+            self.invisble_step()
+            self.scroll()
+            self.redraw()
+            self.dead_ask_reset()
+
+
+        if self._exit == True:
+            exit(0)
 
         self._master.after(10, self.step)
 
@@ -352,7 +474,9 @@ class MarioApp:
         self._player.set_velocity([vx, vy])
 
     def _duck(self):
-        pass
+        if self._player.is_on_tunnel():
+            self._player.get_tunnel().triger(self)
+            self._player.off_tunnel()
 
     def _setup_collision_handlers(self):
         self._world.add_collision_handler("player", "item", on_begin=self._handle_player_collide_item)
@@ -365,14 +489,17 @@ class MarioApp:
 
     def _handle_mob_collide_block(self, mob: Mob, block: Block, data,
                                   arbiter: pymunk.Arbiter) -> bool:
-        if mob.get_id() == "fireball":
-            if block.get_id() == "brick":
-                self._world.remove_block(block)
-            self._world.remove_mob(mob)
+        if block not in self.invisible_list:
+            if mob.get_id() == "fireball":
+                if block.get_id() == "brick":
+                    self._world.remove_block(block)
+                self._world.remove_mob(mob)
 
-        if mob.get_id() == "mushroom":
-            mob.collide(block)
-        return True
+            if mob.get_id() == "mushroom":
+                mob.collide(block)
+            return True
+        else:
+            return False
 
     def _handle_mob_collide_item(self, mob: Mob, block: Block, data,
                                  arbiter: pymunk.Arbiter) -> bool:
@@ -387,8 +514,6 @@ class MarioApp:
             mob1.collide(mob2)
         if mob2.get_id() == "mushroom":
             mob2.collide(mob1)
-
-
         return False
 
     def _handle_player_collide_item(self, player: Player, dropped_item: DroppedItem,
@@ -416,56 +541,85 @@ class MarioApp:
 
     def _handle_player_collide_block(self, player: Player, block: Block, data,
                                      arbiter: pymunk.Arbiter) -> bool:
+        if block not in self.invisible_list:
+            if block.get_id() == "flag":
+                block.on_hit(self, self._player)
+            elif block.get_id() == 'tunnel':
+                block.on_hit(player)
+            elif block.get_id() == 'switch':
+                block.on_hit(arbiter, (self._world, player))
+                if block.is_pressed():
+                    in_range_list = self._world.get_things_in_range(block.get_position()[0],block.get_position()[1], block.get_invisible_radius())
+                    for thing in in_range_list:
+                        if isinstance(thing, Block) :
+                            if thing.get_id()== "brick" or thing.get_id() == "swtich":
+                                self._world.remove_block(thing)
+                                #invisible time = 1000 * 10ms
+                                self.invisible_list.append([thing, 1000])
 
-        block.on_hit(arbiter, (self._world, player))
-        return True
+            else:
+                block.on_hit(arbiter, (self._world, player))
+            return True
+        else:
+            return False
+
+    def invisble_step(self):
+        for invisible in self.invisible_list:
+            invisible[1] -= 1
+            invisible_block, invisible_time = invisible
+            if invisible_time <= 0:
+                self._world.add_block(invisible_block, invisible_block.get_position()[0], invisible_block.get_position()[1])
+                self.invisible_list.remove(invisible)
+
 
     def _handle_player_collide_mob(self, player: Player, mob: Mob, data,
                                    arbiter: pymunk.Arbiter) -> bool:
         mob.on_hit(arbiter, (self._world, player))
+        if player.is_invincible():
+            self._world.remove_mob(mob)
         return True
 
     def _handle_player_separate_block(self, player: Player, block: Block, data,
                                       arbiter: pymunk.Arbiter) -> bool:
+        if(block.get_id() == 'tunnel'):
+            player.off_tunnel()
         return True
-
-
-
-
 
 class StatusBar(tk.Frame):
     BARHEIGHT = 20
-    def __init__(self, master, score, health, max_health = 5):
+    def __init__(self, master, player):
 
-        self.health = health
-        self.max_health = max_health
-        self.score = score
-        self.width = MAX_WINDOW_SIZE[0]
+        self._score = player.get_score()
+        self._width = MAX_WINDOW_SIZE[0]
 
-        self.canvas = tk.Canvas(master, width = self.width, height = self.BARHEIGHT, bg ='black',  highlightthickness = 0, borderwidth = 0)
-        self.display_health()
+        self.canvas = tk.Canvas(master, width = self._width, height = self.BARHEIGHT, bg ='black',  highlightthickness = 0, borderwidth = 0)
+        self.display_health(player)
         self.canvas.pack()
 
-        self._score = tk.Label(master, text="Score: {0}".format(score))
-        self._score.pack()
+        self._score_label = tk.Label(master, text="Score: {0}".format(self._score))
+        self._score_label.pack()
 
-    def display_health(self):
-        health_percent = self.health/self.max_health
+    def display_health(self, player):
+
+        health_percent =  player.get_health() / player.get_max_health()
         if health_percent > 0.5:
             color = 'green'
         elif health_percent > 0.25:
             color = 'orange'
         else:
             color = 'red'
-        self.canvas.create_rectangle(0, 0, health_percent * self.width, self.BARHEIGHT , fill= color)
 
-    def update_status(self, health, score):
+        if player.is_invincible():
+            color = 'yellow'
+
+        self.canvas.create_rectangle(0, 0, health_percent * self._width, self.BARHEIGHT , fill= color)
+
+    def update_status(self, player):
 
         self.canvas.delete("all")
-        self.health = health
-        self.display_health()
-        self._score.config(text = "Score: {0}".format(score))
-
+        self.display_health(player)
+        self._score = player.get_score()
+        self._score_label.config(text = "Score: {0}".format(self._score))
 
 class Mushroom(Mob):
 
@@ -495,12 +649,8 @@ class Mushroom(Mob):
                 get_collision_direction(entity, self) == "L":
             self.set_tempo(-self.get_tempo())
 
-
 class BounceBlock(Block):
     _id = "bounce_block"
-
-    def __init__(self):
-        super().__init__()
 
     def on_hit(self, event, data):
         world, player = data
@@ -509,28 +659,119 @@ class BounceBlock(Block):
             vy = -300
             data[1].set_velocity([vx, vy])
 
-
 class Star(DroppedItem):
-
     _id = "star"
 
     def collect(self, player: Player):
         player.invincible()
 
-class Flag(Block):
+class Goal(Block):
+    _id = "goal"
+    _cell_size = (1, 1)
 
-    def on_hit(self, event, data):
-        """Callback collision with player event handler."""
-        world, player = data
+    def get_cell_size(self) -> Tuple[int, int]:
+        return self._cell_size
 
+    def triger(self, app, trigger_id = None):
+        now_level_line = 0
+        for line_content in app.file_content:
+            if line_content.find('==' + app._level + '==')!= -1:
+                break
+            now_level_line += 1
+        if not trigger_id:
+            trigger_id = self._id
+        for line_content in app.file_content[now_level_line:]:
+            if app.find_in_line_and_config(line_content, trigger_id, str):
+                break
+        app.load_level(filename = app.configuration[trigger_id], resetplayer=False)
+        app.write_highscore()
 
+class Flag(Goal):
+    _id = "flag"
+    _cell_size = GOAL_SIZES.get(_id)
 
+    def on_hit(self, app, player):
+        if get_collision_direction(player, self) == "A":
+            player.change_health(1)
+        super().triger(app,"goal")
 
-class Tunnel(Block):
-    pass
+class Tunnel(Goal):
+    _id = "tunnel"
+    _cell_size = GOAL_SIZES.get(_id)
+
+    def on_hit(self,player):
+        if get_collision_direction(player, self) == "A":
+            player.on_tunnel(self)
+
 
 class Switch(Block):
-    pass
+    _id = "switch"
+    _invisible_radius = 50
+
+    def __init__(self):
+
+        super().__init__()
+        self.pressed_time = 0
+
+    def on_hit(self, event, data):
+
+        world, player = data
+
+        if get_collision_direction(player, self) == "A":
+            if not self.is_pressed():
+                self.set_pressed_time()
+                _id = "switch_pressed"
+
+    def set_pressed_time(self, time = 1000):
+        self.pressed_time = time
+
+    def step(self, time_delta, game_data):
+        if self.is_pressed():
+            self.pressed_time -= 1
+
+    def is_pressed(self):
+        return self.pressed_time > 0
+
+    def get_invisible_radius(self):
+        return self._invisible_radius
+
+
+class MarioViewRenderer(ViewRenderer):
+    """A customised view renderer for a game of mario."""
+
+    @ViewRenderer.draw.register(Player)
+    def _draw_player(self, instance: Player, shape: pymunk.Shape,
+                     view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
+
+        if shape.body.velocity.x >= 0:
+            image = self.load_image("mario_right")
+        else:
+            image = self.load_image("mario_left")
+
+        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
+                                  image=image, tags="player")]
+
+    @ViewRenderer.draw.register(MysteryBlock)
+    def _draw_mystery_block(self, instance: MysteryBlock, shape: pymunk.Shape,
+                            view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
+        if instance.is_active():
+            image = self.load_image("coin")
+        else:
+            image = self.load_image("coin_used")
+
+        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
+                                  image=image, tags="block")]
+
+    @ViewRenderer.draw.register(Switch)
+    def _draw_switch(self, instance: Switch, shape: pymunk.Shape,
+                            view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
+        if instance.is_pressed():
+            image = self.load_image("switch_pressed")
+        else:
+            image = self.load_image("switch")
+
+        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
+                                  image=image, tags="block")]
 
 def main():
     root = tk.Tk()
