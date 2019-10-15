@@ -22,3 +22,5 @@ dsfs,0
 sdf,0
 sssssa,0
 saf,12
+test1,6
+sda,3

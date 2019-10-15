@@ -7,3 +7,4 @@ hgf,1
 ssa,1
 JZ,1
 da,0
+test1,10

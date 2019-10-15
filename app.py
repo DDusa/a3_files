@@ -294,37 +294,37 @@ class MarioApp:
 
     def edit_level(self):
         self.pause()
-        self.mapeditor = tk.Toplevel()
-        self.mapeditor.title("Level editor")
+        self.mapeditor_level = tk.Toplevel()
+        self.mapeditor_level.title("Level editor")
         self.map_edited = False
-        self.new_level_button = tk.Button(self.mapeditor, text="New level", command=self.create_new, width = 20,height = 5)
+        self.new_level_button = tk.Button(self.mapeditor_level, text="New level", command=self.create_new, width = 20,height = 5)
         self.new_level_button.pack(side = tk.LEFT, padx= 2, pady = (3,2))
 
-        self.edit_level_button = tk.Button(self.mapeditor, text="Edit level", command=self.edit_old, width = 20,height = 5)
+        self.edit_level_button = tk.Button(self.mapeditor_level, text="Edit level", command=self.edit_old, width = 20,height = 5)
         self.edit_level_button.pack(side = tk.LEFT, padx= 2, pady = (3,2))
 
-        self.mapeditor.protocol("WM_DELETE_WINDOW", self.edit_level_closing)
+        self.mapeditor_level.protocol("WM_DELETE_WINDOW", self.edit_level_closing)
 
     def create_new(self):
         self.new_level_button.destroy()
         self.edit_level_button.destroy()
 
-        self.level_name_label = tk.Label(self.mapeditor, text='The name of new level: ', width=20)
+        self.level_name_label = tk.Label(self.mapeditor_level, text='The name of new level: ', width=20)
         self.level_name_label.grid(row = 0)
-        self.level_name_entry = tk.Entry(self.mapeditor, width=40)
+        self.level_name_entry = tk.Entry(self.mapeditor_level, width=40)
         self.level_name_entry.grid(row=0, column=1)
 
-        self.level_width_label = tk.Label(self.mapeditor, text='The width of new level: ', width=20)
+        self.level_width_label = tk.Label(self.mapeditor_level, text='The width of new level: ', width=20)
         self.level_width_label.grid(row = 1)
-        self.level_width_entry = tk.Entry(self.mapeditor, width=40)
+        self.level_width_entry = tk.Entry(self.mapeditor_level, width=40)
         self.level_width_entry.grid(row=1, column=1)
 
-        self.level_height_label = tk.Label(self.mapeditor, text='The height of new level: ', width=20)
+        self.level_height_label = tk.Label(self.mapeditor_level, text='The height of new level: ', width=20)
         self.level_height_label.grid(row = 2)
-        self.level_height_entry = tk.Entry(self.mapeditor, width=40)
+        self.level_height_entry = tk.Entry(self.mapeditor_level, width=40)
         self.level_height_entry.grid(row=2, column=1)
 
-        self.next_button = tk.Button(self.mapeditor, text="Next", command=self.create_new_level, width=20)
+        self.next_button = tk.Button(self.mapeditor_level, text="Next", command=self.create_new_level, width=20)
         self.next_button.grid(row=0, column=2, rowspan = 3, sticky= tk.W + tk.E + tk.N + tk.S)
 
     def create_new_level(self):
@@ -336,29 +336,40 @@ class MarioApp:
                  open(self.editing_level_name, "r")
                  if messagebox.askokcancel("Edit error","The file has existed, do you want to edit?"):
                      level_existed = True
+                     edit_exist = True
                  else:
-                     self.create_new()
+                     level_existed = True
+                     edit_exist = False
             except:
+                level_existed = False
                 try:
-                    self.new_level_width = int(self.level_width_entry.get())
+                    new_level_width = int(self.level_width_entry.get())
+                    width_invalid = False
+                    try:
+                        new_level_height = int(self.level_height_entry.get())
+                        height_invalid = False
+                    except:
+                        messagebox.showinfo("Create error", "Level height must be a int!")
+                        height_invalid = True
                 except:
                     messagebox.showinfo("Create error", "Level width must be a int!")
                     width_invalid = True
-                try:
-                    self.new_level_height = int(self.level_height_entry.get())
-                except:
-                    messagebox.showinfo("Create error", "Level height must be a int!")
-                    height_invalid = True
+
 
             if level_existed:
-                self.edit_map(self.editing_level_name)
+                if edit_exist:
+                    self.edit_map(self.editing_level_name)
+                else:
+                    self.create_new()
             else:
                 if width_invalid:
                     pass
-                if height_invalid:
+                elif height_invalid:
                     pass
                 else:
-                    open(self.editing_level_name, "w+")
+                    file = open(self.editing_level_name, "w+")
+                    for i in range(0,new_level_height):
+                        file.write(new_level_width *" " + "\n")
                     self.edit_map(self.editing_level_name)
                     self.level_name_label.destroy()
                     self.level_name_entry.destroy()
@@ -383,6 +394,8 @@ class MarioApp:
             self.edit_map(self.editing_level_name)
 
     def edit_map(self, level_to_edit):
+
+
         #read the file to edit and save
         #
         #view of editor
@@ -393,7 +406,7 @@ class MarioApp:
         self._map_builder = map_builder
         self._map = load_world(self._map_builder, level_to_edit)
         size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._map.get_pixel_size())))
-        self._map_view = GameView(self.mapeditor, size, self._renderer)
+        self._map_view = GameView(self.mapeditor_level, size, self._renderer)
         self._map_view.pack()
 
         self._map_view.delete(tk.ALL)
@@ -401,33 +414,55 @@ class MarioApp:
 
         self.create_block_button = {}
         self.add_create_block("tunnel")
-        self.add_create_block("flag")
+        self.add_create_block("flag_block")
         self.add_create_block("coin")
-        self.add_create_block("mushroom")
         self.add_create_block("brick")
         self.add_create_block("switch")
-        self.add_create_block("floaty")
 
-        self.editing_level_label = tk.Label(self.mapeditor, text = level_to_edit)
+        self.add_create_block("floaty")
+        self.add_create_block("mushroom")
+
+        self.add_create_block("coin_item")
+        self.add_create_block("star")
+
+        self.editing_level_label = tk.Label(self.mapeditor_level, text = level_to_edit)
         self.editing_level_label.pack(side = tk.LEFT, expand = True)
-        self.save_button = tk.Button(self.mapeditor, text="Save & quit", command=self.save_edited_level, width=20)
-        self.save_button.pack(side = tk.RIGHT)
+
+
+        save_button = tk.Button(self.mapeditor_level, text="Save & quit", command=self.save_edited_level, width=20)
+        save_button.pack(side = tk.RIGHT)
+        self.create_block_button["save_button"] = (save_button,None)
+
+        delete_button = tk.Button(self.mapeditor_level, text="Delete", width="16", command = self.delete_callback)
+        delete_button.pack(side = tk.RIGHT)
+        self.create_block_button["delete_button"] = (delete_button,None)
+
         self.map_edited = True
 
     def add_create_block(self, block_name):
 
+        button_callback = self.create_callback(block_name)
         button_image = tk.PhotoImage(file="images/" + block_name + ".png")
-        button = tk.Button(self.mapeditor, width="16", height="16", image=button_image)
+
+        button = tk.Button(self.mapeditor_level, width="16", height="16", image=button_image, command = button_callback)
         button.pack(side = tk.LEFT)
         #Save button_image to avoid garbage collection
         self.create_block_button[block_name] = (button, button_image)
 
-    def delete_create_block(self, block_name):
-        self.create_block_button[block_name][1].destory()
-        del self.create_block_button[block_name]
+    def delete_callback(self):
+        self.mapeditor_level.config(cursor="X_cursor")
+        self.block_picked = "delete"
+
+    def create_callback(self, block_name):
+        def callback():
+            self.block_picked = block_name
+            self.mapeditor_level.config(cursor="plus")
+            print(self.block_picked)
+        callback.__name__ = block_name +"_create_button_call_back"
+        return callback
 
     def save_edited_level(self):
-        self.mapeditor.destroy()
+        self.mapeditor_level.destroy()
         self.map_edited = False
 
         self.resume()
@@ -435,12 +470,12 @@ class MarioApp:
     def edit_level_closing(self):
         if self.map_edited:
             if messagebox.askokcancel("Edited level not saving!", "Leave without saving?"):
-                self.mapeditor.destroy()
+                self.mapeditor_level.destroy()
                 self.resume()
             else:
                 pass
         else:
-            self.mapeditor.destroy()
+            self.mapeditor_level.destroy()
             self.resume()
 
     def pause(self):
@@ -495,10 +530,10 @@ class MarioApp:
         high_score_list.sort(key=lambda x: int(x[1]), reverse= True)
         if num_of_record >= 10:
             for i in range(0,10):
-                text_to_show += (str(i)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
+                text_to_show += (str(i+1)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
         else:
             for i in range(0, num_of_record):
-                text_to_show += (str(i)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
+                text_to_show += (str(i+1)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
         self.read_highscore_top_level = tk.Toplevel()
         self.read_highscore_top_level.title("Leaderboard")
 
@@ -738,7 +773,7 @@ class MarioApp:
             return True
         else:
             return False
-
+        
     def invisble_step(self):
         for invisible in self.invisible_list:
             invisible[1] -= 1
@@ -746,7 +781,6 @@ class MarioApp:
             if invisible_time <= 0:
                 self._world.add_block(invisible_block, invisible_block.get_position()[0], invisible_block.get_position()[1])
                 self.invisible_list.remove(invisible)
-
 
     def _handle_player_collide_mob(self, player: Player, mob: Mob, data,
                                    arbiter: pymunk.Arbiter) -> bool:
@@ -773,7 +807,7 @@ class StatusBar(tk.Frame):
         self.canvas.pack()
 
         self._score_label = tk.Label(master, text="Score: {0}".format(self._score))
-        self._score_label.pack(side = tk.LEFT)
+        self._score_label.pack()
 
     def display_health(self, player):
 
