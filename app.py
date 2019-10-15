@@ -8,7 +8,6 @@ __version__ = "1.1.0"
 __copyright__ = "The University of Queensland, 2019"
 
 import math
-import sys
 import tkinter as tk
 
 from typing import Tuple, List
@@ -18,6 +17,7 @@ from tkinter import messagebox
 from game.util import get_collision_direction
 
 import pymunk
+from PIL import Image
 
 from game.block import Block, MysteryBlock
 from game.entity import Entity, BoundaryWall
@@ -167,8 +167,6 @@ MOB_IMAGES = {
 }
 
 
-
-
 class MarioApp:
     """High-level app class for Mario, a 2d platformer"""
 
@@ -196,7 +194,12 @@ class MarioApp:
         self._builder = world_builder
 
         self._level = self.configuration["start"]
-        self._player = Player(max_health=self.configuration["health"])
+        if "character" in self.configuration:
+            self.character = self.configuration["character"]
+        else:
+            self.character = "Mario"
+        self._player = Player(name = self.character, max_health=self.configuration["health"])
+
         self.reset_world(self._level)
 
         self._renderer = MarioViewRenderer(BLOCK_IMAGES, ITEM_IMAGES, MOB_IMAGES)
@@ -225,16 +228,17 @@ class MarioApp:
     def load_config(self):
         config_filename = filedialog.askopenfilename()
         try:
-            self.file_content = open(config_filename, "r").readlines()
+            self.config_file_content = open(config_filename, "r").readlines()
         except:
             self.configuration_error('missing')
         line_index = 0
 
         self.configuration = {}
 
-        for line_content in self.file_content:
+        for line_content in self.config_file_content:
             self.find_in_line_and_config(line_content, "gravity", int)
             self.find_in_line_and_config(line_content, "start", str)
+            self.find_in_line_and_config(line_content, "character", str)
             self.find_in_line_and_config(line_content, "x", int)
             self.find_in_line_and_config(line_content, "y", int)
             self.find_in_line_and_config(line_content, "mass", int)
@@ -279,45 +283,165 @@ class MarioApp:
         menubar.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="Load Level", command=self.load_level)
         filemenu.add_command(label="Reset Level", command=self.reset_level)
-        filemenu.add_command(label="High Score", command=self.read_highscore)
+        filemenu.add_command(label="Edit Level", command=self.edit_level)
         filemenu.add_command(label="Exit", command=self.exit)
 
         gamemenu = tk.Menu(menubar)
         menubar.add_cascade(label="Game", menu=gamemenu)
         gamemenu.add_command(label="Pause", command=self.pause)
         gamemenu.add_command(label="Continue", command=self.resume)
+        gamemenu.add_command(label="High Score", command=self.read_highscore)
 
-    def write_highscore(self):
+    def edit_level(self):
         self.pause()
-        self.top1 = tk.Toplevel()
-        self.top1.title("Enter ur name for highscore!")
-        label = tk.Label(self.top1, text='Your name: ')
-        label.pack(side=tk.LEFT)
-        self.highscore_entry = tk.Entry(self.top1, width=20)
-        self.highscore_entry.pack(side=tk.LEFT)
+        self.mapeditor = tk.Toplevel()
+        self.mapeditor.title("Level editor")
+        self.map_edited = False
+        self.new_level_button = tk.Button(self.mapeditor, text="New level", command=self.create_new, width = 20,height = 5)
+        self.new_level_button.pack(side = tk.LEFT, padx= 2, pady = (3,2))
 
-        enter = tk.Button(self.top1, text="Enter", command=self.enter)
-        enter.pack(side=tk.LEFT)
+        self.edit_level_button = tk.Button(self.mapeditor, text="Edit level", command=self.edit_old, width = 20,height = 5)
+        self.edit_level_button.pack(side = tk.LEFT, padx= 2, pady = (3,2))
 
-        self.top1.bind('<Return>', self.enter)
-        self.top1.protocol("WM_DELETE_WINDOW", self.top1_on_closing)
-        
-    def top1_on_closing(self):
-        if messagebox.askokcancel("Record not saving!", "Leave without saving?"):
-            self.resume()
-            self.top1.destroy()
+        self.mapeditor.protocol("WM_DELETE_WINDOW", self.edit_level_closing)
+
+    def create_new(self):
+        self.new_level_button.destroy()
+        self.edit_level_button.destroy()
+
+        self.level_name_label = tk.Label(self.mapeditor, text='The name of new level: ', width=20)
+        self.level_name_label.grid(row = 0)
+        self.level_name_entry = tk.Entry(self.mapeditor, width=40)
+        self.level_name_entry.grid(row=0, column=1)
+
+        self.level_width_label = tk.Label(self.mapeditor, text='The width of new level: ', width=20)
+        self.level_width_label.grid(row = 1)
+        self.level_width_entry = tk.Entry(self.mapeditor, width=40)
+        self.level_width_entry.grid(row=1, column=1)
+
+        self.level_height_label = tk.Label(self.mapeditor, text='The height of new level: ', width=20)
+        self.level_height_label.grid(row = 2)
+        self.level_height_entry = tk.Entry(self.mapeditor, width=40)
+        self.level_height_entry.grid(row=2, column=1)
+
+        self.next_button = tk.Button(self.mapeditor, text="Next", command=self.create_new_level, width=20)
+        self.next_button.grid(row=0, column=2, rowspan = 3, sticky= tk.W + tk.E + tk.N + tk.S)
+
+    def create_new_level(self):
+        if not self.level_name_entry.get():
+            messagebox.showinfo("Create error","Level name can't be None!")
         else:
-            self.top1.destroy()
-            self.write_highscore()
+            self.editing_level_name = self.level_name_entry.get()
+            try:
+                 open(self.editing_level_name, "r")
+                 if messagebox.askokcancel("Edit error","The file has existed, do you want to edit?"):
+                     level_existed = True
+                 else:
+                     self.create_new()
+            except:
+                try:
+                    self.new_level_width = int(self.level_width_entry.get())
+                except:
+                    messagebox.showinfo("Create error", "Level width must be a int!")
+                    width_invalid = True
+                try:
+                    self.new_level_height = int(self.level_height_entry.get())
+                except:
+                    messagebox.showinfo("Create error", "Level height must be a int!")
+                    height_invalid = True
 
-    def enter(self, event = None):
-        highscore = open( self._last_level + "high_score.txt", "a+")
-        name = self.highscore_entry.get()
-        score = str(self._player.get_score())
-        record = name + ',' + score + '\n'
-        self.top1.destroy()
-        highscore.write(record)
+            if level_existed:
+                self.edit_map(self.editing_level_name)
+            else:
+                if width_invalid:
+                    pass
+                if height_invalid:
+                    pass
+                else:
+                    open(self.editing_level_name, "w+")
+                    self.edit_map(self.editing_level_name)
+                    self.level_name_label.destroy()
+                    self.level_name_entry.destroy()
+                    self.level_width_label.destroy()
+                    self.level_width_entry.destroy()
+                    self.level_height_label.destroy()
+                    self.level_height_entry.destroy()
+                    self.next_button.destroy()
+
+    def edit_old(self):
+        self.new_level_button.destroy()
+        self.edit_level_button.destroy()
+
+        self.editing_level_name = filedialog.askopenfilename()
+        try:
+            open(self.editing_level_name, "r")
+            level_existed = True
+        except:
+            messagebox.showinfo("Edit error", "Level not exist, must create level first!")
+
+        if level_existed:
+            self.edit_map(self.editing_level_name)
+
+    def edit_map(self, level_to_edit):
+        #read the file to edit and save
+        #
+        #view of editor
+        map_builder = WorldBuilder(BLOCK_SIZE, gravity=(0, self.configuration["gravity"]), fallback=create_unknown)
+        map_builder.register_builders(BLOCKS.keys(), create_block)
+        map_builder.register_builders(ITEMS.keys(), create_item)
+        map_builder.register_builders(MOBS.keys(), create_mob)
+        self._map_builder = map_builder
+        self._map = load_world(self._map_builder, level_to_edit)
+        size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._map.get_pixel_size())))
+        self._map_view = GameView(self.mapeditor, size, self._renderer)
+        self._map_view.pack()
+
+        self._map_view.delete(tk.ALL)
+        self._map_view.draw_entities(self._map.get_all_things())
+
+        self.create_block_button = {}
+        self.add_create_block("tunnel")
+        self.add_create_block("flag")
+        self.add_create_block("coin")
+        self.add_create_block("mushroom")
+        self.add_create_block("brick")
+        self.add_create_block("switch")
+        self.add_create_block("floaty")
+
+        self.editing_level_label = tk.Label(self.mapeditor, text = level_to_edit)
+        self.editing_level_label.pack(side = tk.LEFT, expand = True)
+        self.save_button = tk.Button(self.mapeditor, text="Save & quit", command=self.save_edited_level, width=20)
+        self.save_button.pack(side = tk.RIGHT)
+        self.map_edited = True
+
+    def add_create_block(self, block_name):
+
+        button_image = tk.PhotoImage(file="images/" + block_name + ".png")
+        button = tk.Button(self.mapeditor, width="16", height="16", image=button_image)
+        button.pack(side = tk.LEFT)
+        #Save button_image to avoid garbage collection
+        self.create_block_button[block_name] = (button, button_image)
+
+    def delete_create_block(self, block_name):
+        self.create_block_button[block_name][1].destory()
+        del self.create_block_button[block_name]
+
+    def save_edited_level(self):
+        self.mapeditor.destroy()
+        self.map_edited = False
+
         self.resume()
+
+    def edit_level_closing(self):
+        if self.map_edited:
+            if messagebox.askokcancel("Edited level not saving!", "Leave without saving?"):
+                self.mapeditor.destroy()
+                self.resume()
+            else:
+                pass
+        else:
+            self.mapeditor.destroy()
+            self.resume()
 
     def pause(self):
         self._pause = True
@@ -325,9 +449,41 @@ class MarioApp:
     def resume(self):
         self._pause = False
 
+    def write_highscore(self):
+        self.pause()
+        self.write_highscore_top_level = tk.Toplevel()
+        self.write_highscore_top_level.title("Enter ur name for highscore!")
+        label = tk.Label(self.write_highscore_top_level, text='Your name:')
+        label.pack(side=tk.LEFT)
+        self.highscore_entry = tk.Entry(self.write_highscore_top_level, width=40)
+        self.highscore_entry.pack(side=tk.LEFT)
+
+        enter = tk.Button(self.write_highscore_top_level, text="Enter", command=self.enter)
+        enter.pack(side=tk.LEFT)
+
+        self.write_highscore_top_level.bind('<Return>', self.enter)
+        self.write_highscore_top_level.protocol("WM_DELETE_WINDOW", self.write_highscore_closing)
+
+    def write_highscore_closing(self):
+        if messagebox.askokcancel("Record not saving!", "Leave without saving?"):
+            self.resume()
+            self.write_highscore_top_level.destroy()
+        else:
+            self.write_highscore_top_level.destroy()
+            self.write_highscore()
+
+    def enter(self, event=None):
+        highscore = open(self._last_level + "high_score.txt", "a+")
+        name = self.highscore_entry.get()
+        score = str(self._player.get_score())
+        record = name + ',' + score + '\n'
+        self.write_highscore_top_level.destroy()
+        highscore.write(record)
+        self.resume()
+
     def read_highscore(self):
         high_score_list = []
-        text_to_show = 'rank        name        score\n'
+        text_to_show = 'rank      name      score\n'
         num_of_record = 0
         try:
             highscore = open(self._level + "high_score.txt", "r+")
@@ -343,25 +499,31 @@ class MarioApp:
         else:
             for i in range(0, num_of_record):
                 text_to_show += (str(i)+'       ' + high_score_list[i][0] + '       ' + high_score_list[i][1] + '\n')
-        self.top2 = tk.Toplevel()
-        self.top2.title("Leaderboard")
+        self.read_highscore_top_level = tk.Toplevel()
+        self.read_highscore_top_level.title("Leaderboard")
 
-        record =  tk.Text(self.top2, height=10, width=30)
+        record =  tk.Text(self.read_highscore_top_level, height=10, width=30)
         record.insert(tk.END, text_to_show)
         record.pack(side=tk.LEFT)
         self.pause()
-        self.top2.protocol("WM_DELETE_WINDOW", self.top2_on_closing)
+        self.read_highscore_top_level.protocol("WM_DELETE_WINDOW", self.read_highscore_closing)
 
-    def top2_on_closing(self):
+    def read_highscore_closing(self):
         self.resume()
-        self.top2.destroy()
+        self.read_highscore_top_level.destroy()
 
     def takeScore(self, high_score_list):
         return int(high_score_list[1])
 
     def reset_world(self, new_level="level1.txt"):
         self._world = load_world(self._builder, new_level)
-        self._world.add_player(self._player, BLOCK_SIZE, BLOCK_SIZE)
+        starting_x = BLOCK_SIZE
+        starting_y = BLOCK_SIZE
+        if "x" in self.configuration:
+            starting_x = self.configuration["x"]
+        if "y" in self.configuration:
+            starting_y = self.configuration["y"]
+        self._world.add_player(self._player, starting_x, starting_y)
         self._builder.clear()
 
         self._setup_collision_handlers()
@@ -390,18 +552,30 @@ class MarioApp:
 
     def load_level(self, filename = None, resetplayer = True):
         if not filename:
-            filename = filedialog.askopenfilename()
-        if filename == "END":
+            self.pause()
+            self._level = filedialog.askopenfilename()
+            if not self._level.endswith('.txt'):
+                messagebox.showinfo("File error","A level file should end with .txt")
+                self.load_level()
+            else:
+                self.resume()
+                self.reset_level(resetplayer)
+        elif filename == "END":
             messagebox.showinfo("CONGRATULATIONS", "You won the game!")
             self.exit()
         else:
             self._last_level = self._level
-            self._level = filename
-            self.reset_level(resetplayer)
+            try :
+                open(filename)
+                self._level = filename
+                self.reset_level(resetplayer)
+            except:
+                messagebox.showinfo("Error", "Can't find next level file")
+                self.exit()
 
     def reset_level(self, resetplayer = True):
         if resetplayer:
-            self._player = Player(max_health=5)
+            self._player = Player(name = self.character, max_health=self.configuration["health"])
         self.reset_world(self._level)
 
     def dead_ask_reset(self):
@@ -490,11 +664,13 @@ class MarioApp:
     def _handle_mob_collide_block(self, mob: Mob, block: Block, data,
                                   arbiter: pymunk.Arbiter) -> bool:
         if block not in self.invisible_list:
+            if block.get_id() == 'switch' :
+                if block.is_pressed():
+                    return False
             if mob.get_id() == "fireball":
                 if block.get_id() == "brick":
                     self._world.remove_block(block)
                 self._world.remove_mob(mob)
-
             if mob.get_id() == "mushroom":
                 mob.collide(block)
             return True
@@ -552,11 +728,11 @@ class MarioApp:
                     in_range_list = self._world.get_things_in_range(block.get_position()[0],block.get_position()[1], block.get_invisible_radius())
                     for thing in in_range_list:
                         if isinstance(thing, Block) :
-                            if thing.get_id()== "brick" or thing.get_id() == "swtich":
+                            if thing.get_id()== "brick":
                                 self._world.remove_block(thing)
                                 #invisible time = 1000 * 10ms
                                 self.invisible_list.append([thing, 1000])
-
+                    return False
             else:
                 block.on_hit(arbiter, (self._world, player))
             return True
@@ -597,7 +773,7 @@ class StatusBar(tk.Frame):
         self.canvas.pack()
 
         self._score_label = tk.Label(master, text="Score: {0}".format(self._score))
-        self._score_label.pack()
+        self._score_label.pack(side = tk.LEFT)
 
     def display_health(self, player):
 
@@ -641,7 +817,7 @@ class Mushroom(Mob):
             else:
                 player.set_velocity([100,player_vy])
         else:
-            player.set_velocity([player_vx, 200])
+            player.set_velocity([player_vx, 400])
             world.remove_mob(self)
 
     def collide(self, entity):
@@ -674,17 +850,24 @@ class Goal(Block):
 
     def triger(self, app, trigger_id = None):
         now_level_line = 0
-        for line_content in app.file_content:
+        for line_content in app.config_file_content:
             if line_content.find('==' + app._level + '==')!= -1:
                 break
+            
             now_level_line += 1
         if not trigger_id:
             trigger_id = self._id
-        for line_content in app.file_content[now_level_line:]:
+        found = False
+        for line_content in app.config_file_content[now_level_line:]:
             if app.find_in_line_and_config(line_content, trigger_id, str):
+                found = True
                 break
-        app.load_level(filename = app.configuration[trigger_id], resetplayer=False)
-        app.write_highscore()
+        if found == False:
+            messagebox.showinfo("Configure Error","Can't find next level")
+            app.exit()
+        else:
+            app.load_level(filename = app.configuration[trigger_id], resetplayer=False)
+            app.write_highscore()
 
 class Flag(Goal):
     _id = "flag"
@@ -703,7 +886,6 @@ class Tunnel(Goal):
         if get_collision_direction(player, self) == "A":
             player.on_tunnel(self)
 
-
 class Switch(Block):
     _id = "switch"
     _invisible_radius = 50
@@ -720,7 +902,6 @@ class Switch(Block):
         if get_collision_direction(player, self) == "A":
             if not self.is_pressed():
                 self.set_pressed_time()
-                _id = "switch_pressed"
 
     def set_pressed_time(self, time = 1000):
         self.pressed_time = time
@@ -734,7 +915,6 @@ class Switch(Block):
 
     def get_invisible_radius(self):
         return self._invisible_radius
-
 
 class MarioViewRenderer(ViewRenderer):
     """A customised view renderer for a game of mario."""
@@ -773,11 +953,15 @@ class MarioViewRenderer(ViewRenderer):
         return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
                                   image=image, tags="block")]
 
+class SpriteSheetLoader():
+    # def load
+    # im = Image.open("bride.jpg")
+    pass
+
 def main():
     root = tk.Tk()
     app = MarioApp(root)
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()

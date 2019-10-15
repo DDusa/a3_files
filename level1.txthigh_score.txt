@@ -17,3 +17,8 @@ sd,1
 ss,1
 asd,1
 JZ,1
+mario,0
+dsfs,0
+sdf,0
+sssssa,0
+saf,12

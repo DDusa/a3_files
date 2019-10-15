@@ -4,8 +4,8 @@ start : level1.txt
 
 ==Player==
 character : luigi
-x : 30
-y : 30
+x : 0
+y : 250
 mass : 100
 health : 4
 max_velocity : 100
