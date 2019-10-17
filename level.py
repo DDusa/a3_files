@@ -86,9 +86,9 @@ class WorldBuilder:
         """
         # resize the world accordingly
         if x >= self._width:
-            self._width = x + self._block_size // 2
+            self._width = x + 1
         if y >= self._height:
-            self._height = y + self._block_size // 2
+            self._height = y + 1
 
         self._entities.append((entity_id, x, y, args))
 

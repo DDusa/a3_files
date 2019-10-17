@@ -17,6 +17,7 @@ from tkinter import messagebox
 from game.util import get_collision_direction
 
 import pymunk
+import os
 from PIL import Image
 
 from game.block import Block, MysteryBlock
@@ -200,10 +201,8 @@ class MarioApp:
             self.character = "Mario"
         self._player = Player(name = self.character, max_health=self.configuration["health"])
 
-        self.reset_world(self._level)
-
         self._renderer = MarioViewRenderer(BLOCK_IMAGES, ITEM_IMAGES, MOB_IMAGES)
-
+        self.reset_world(self._level)
         size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._world.get_pixel_size())))
         self._view = GameView(master, size, self._renderer)
         self._view.pack()
@@ -220,6 +219,9 @@ class MarioApp:
         self.step()
 
     def status_var_config(self):
+        """
+            Initialize the variables representing status of the game
+        """
         self._pause = False
         self._exit = False
         self.pressed_swtich_list = []
@@ -296,7 +298,7 @@ class MarioApp:
         self.pause()
         self.mapeditor_level = tk.Toplevel()
         self.mapeditor_level.title("Level editor")
-        self.map_edited = False
+        self.map_edited = True
         self.new_level_button = tk.Button(self.mapeditor_level, text="New level", command=self.create_new, width = 20,height = 5)
         self.new_level_button.pack(side = tk.LEFT, padx= 2, pady = (3,2))
 
@@ -309,7 +311,7 @@ class MarioApp:
         self.new_level_button.destroy()
         self.edit_level_button.destroy()
 
-        self.level_name_label = tk.Label(self.mapeditor_level, text='The name of new level: ', width=20)
+        self.level_name_label = tk.Label(self.mapeditor_level, text='Name of new level(.txt): ', width=20)
         self.level_name_label.grid(row = 0)
         self.level_name_entry = tk.Entry(self.mapeditor_level, width=40)
         self.level_name_entry.grid(row=0, column=1)
@@ -368,9 +370,12 @@ class MarioApp:
                     pass
                 else:
                     file = open(self.editing_level_name, "w+")
-                    for i in range(0,new_level_height):
-                        file.write(new_level_width *" " + "\n")
-                    self.edit_map(self.editing_level_name)
+                    for line in range(0,new_level_height):
+                        file.write(new_level_width * " " + "\n")
+                        if line == new_level_height - 1:
+                            file.write(new_level_width * "%" + "\n" )
+                            file.close()
+
                     self.level_name_label.destroy()
                     self.level_name_entry.destroy()
                     self.level_width_label.destroy()
@@ -378,26 +383,27 @@ class MarioApp:
                     self.level_height_label.destroy()
                     self.level_height_entry.destroy()
                     self.next_button.destroy()
+                    self.edit_map(self.editing_level_name)
 
     def edit_old(self):
-        self.new_level_button.destroy()
-        self.edit_level_button.destroy()
+
 
         self.editing_level_name = filedialog.askopenfilename()
         try:
+
             open(self.editing_level_name, "r")
+            self.new_level_button.destroy()
+            self.edit_level_button.destroy()
             level_existed = True
         except:
-            messagebox.showinfo("Edit error", "Level not exist, must create level first!")
+            messagebox.showinfo("Edit error", "Wrong level name!")
+            level_existed = False
 
-        if level_existed:
+        if level_existed :
             self.edit_map(self.editing_level_name)
 
     def edit_map(self, level_to_edit):
-
-
         #read the file to edit and save
-        #
         #view of editor
         map_builder = WorldBuilder(BLOCK_SIZE, gravity=(0, self.configuration["gravity"]), fallback=create_unknown)
         map_builder.register_builders(BLOCKS.keys(), create_block)
@@ -437,10 +443,97 @@ class MarioApp:
         delete_button.pack(side = tk.RIGHT)
         self.create_block_button["delete_button"] = (delete_button,None)
 
+        # delete_button = tk.Button(self.mapeditor_level, text="Delete", width="16", command = self.delete_callback)
+        # delete_button.pack(side = tk.RIGHT)
+        # self.create_block_button["delete_button"] = (delete_button,None)
+        #
+        # delete_button = tk.Button(self.mapeditor_level, text="Delete", width="16", command = self.delete_callback)
+        # delete_button.pack(side = tk.RIGHT)
+        # self.create_block_button["delete_button"] = (delete_button,None)
+        #
+        self._map_view.bind("<Button-1>", self.edit_block_on_map)
+        self.block_picked = None
+        self.map_editor_view_center = 0
+
+    def scroll_editing_map(self):
+        half_screen = self._master.winfo_width() / 2
+        world_size = self._world.get_pixel_size()[0] - half_screen
+        # Left side
+        if self.map_editor_view_center <= half_screen:
+            self._view.set_offset((0, 0))
+
+        # Between left and right sides
+        elif half_screen <= self.map_editor_view_center <= world_size:
+            self._view.set_offset((half_screen - self.map_editor_view_center, 0))
+
+        # Right side
+        elif self.map_editor_view_center >= world_size:
+            self._map_view.set_offset((half_screen - world_size, 0))
+
+    def edit_block_on_map(self, event):
+        #Add chosen block to map upon clicking if a create block is picked before.
         self.map_edited = True
+        editing_x_position = event.x // BLOCK_SIZE
+        editing_y_position = event.y // BLOCK_SIZE
+
+        if self.block_picked == "tunnel":
+            sign = "="
+        if self.block_picked == "flag_block":
+            sign = "I"
+        if self.block_picked == "coin":
+            sign = "$"
+        if self.block_picked == "brick":
+            sign = "#"
+        if self.block_picked == "switch":
+            sign = "S"
+        if self.block_picked == "floaty":
+            sign = "&"
+        if self.block_picked == "mushroom":
+            sign = "@"
+        if self.block_picked == "coin_item":
+            sign = "C"
+        if self.block_picked == "star":
+            sign = "*"
+        if self.block_picked == "delete":
+            sign = " "
+        if self.block_picked == None:
+            self.map_edited = False
+
+        if not self.map_edited:
+            pass
+        else:
+
+            with open(self.editing_level_name, "r") as unmodified_file:
+                unmodified_content = unmodified_file.readlines()
+            modified_file = open(self.editing_level_name+".tmp", "w+")
+
+            max_width = len(max(unmodified_content))
+            for y, line in enumerate(unmodified_content):
+                fill = max_width - len(line)
+                line_str = line + fill * " "
+                if y == editing_y_position:
+                    line_list = list(line )
+                    line_list[editing_x_position] = sign
+                    line_str = "".join(line_list)
+                modified_file.write(line_str)
+            unmodified_file.close()
+            modified_file.close()
+
+            try:
+                os.rename(self.editing_level_name+".tmp", self.editing_level_name)
+            except WindowsError:
+                os.remove(self.editing_level_name)
+                os.rename(self.editing_level_name+".tmp", self.editing_level_name)
+
+
+            self._map = load_world(self._map_builder, self.editing_level_name)
+            self._map_builder.clear()
+            self._map_view.delete(tk.ALL)
+            self.scroll_editing_map()
+            self._map_view.draw_entities(self._map.get_all_things())
 
     def add_create_block(self, block_name):
-
+        #Add create buttons of block with block image to the bottom of the map
         button_callback = self.create_callback(block_name)
         button_image = tk.PhotoImage(file="images/" + block_name + ".png")
 
@@ -450,10 +543,12 @@ class MarioApp:
         self.create_block_button[block_name] = (button, button_image)
 
     def delete_callback(self):
+        #Delete button callback
         self.mapeditor_level.config(cursor="X_cursor")
         self.block_picked = "delete"
 
     def create_callback(self, block_name):
+        #Create call back function dynamiclly for every add block button in the map editor
         def callback():
             self.block_picked = block_name
             self.mapeditor_level.config(cursor="plus")
@@ -462,12 +557,13 @@ class MarioApp:
         return callback
 
     def save_edited_level(self):
+        #Save edited level and continue previous game
         self.mapeditor_level.destroy()
         self.map_edited = False
-
         self.resume()
 
     def edit_level_closing(self):
+        #Deal with editor closing, if level edited and not saved ask if save.
         if self.map_edited:
             if messagebox.askokcancel("Edited level not saving!", "Leave without saving?"):
                 self.mapeditor_level.destroy()
@@ -479,12 +575,15 @@ class MarioApp:
             self.resume()
 
     def pause(self):
+        #pause the game by stop step()
         self._pause = True
 
     def resume(self):
+        #resume the game by cotinue step()
         self._pause = False
 
     def write_highscore(self):
+        #Write high score if reach next level
         self.pause()
         self.write_highscore_top_level = tk.Toplevel()
         self.write_highscore_top_level.title("Enter ur name for highscore!")
@@ -500,6 +599,7 @@ class MarioApp:
         self.write_highscore_top_level.protocol("WM_DELETE_WINDOW", self.write_highscore_closing)
 
     def write_highscore_closing(self):
+        #If high score is not saved, and close the high score record window, ask wether save.
         if messagebox.askokcancel("Record not saving!", "Leave without saving?"):
             self.resume()
             self.write_highscore_top_level.destroy()
@@ -508,6 +608,7 @@ class MarioApp:
             self.write_highscore()
 
     def enter(self, event=None):
+        #Record the high score is the enter button is pressed
         highscore = open(self._last_level + "high_score.txt", "a+")
         name = self.highscore_entry.get()
         score = str(self._player.get_score())
@@ -517,6 +618,7 @@ class MarioApp:
         self.resume()
 
     def read_highscore(self):
+        #Read high score i
         high_score_list = []
         text_to_show = 'rank      name      score\n'
         num_of_record = 0
@@ -551,16 +653,19 @@ class MarioApp:
         return int(high_score_list[1])
 
     def reset_world(self, new_level="level1.txt"):
-        self._world = load_world(self._builder, new_level)
+
         starting_x = BLOCK_SIZE
         starting_y = BLOCK_SIZE
         if "x" in self.configuration:
             starting_x = self.configuration["x"]
         if "y" in self.configuration:
             starting_y = self.configuration["y"]
-        self._world.add_player(self._player, starting_x, starting_y)
-        self._builder.clear()
 
+
+        self._world = load_world(self._builder, new_level)
+        self._world.add_player(self._player, starting_x, starting_y)
+        size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._world.get_pixel_size())))
+        self._view = GameView(self._master, size, self._renderer)
         self._setup_collision_handlers()
 
     def bind(self):
@@ -588,11 +693,14 @@ class MarioApp:
     def load_level(self, filename = None, resetplayer = True):
         if not filename:
             self.pause()
-            self._level = filedialog.askopenfilename()
-            if not self._level.endswith('.txt'):
+            level_name = filedialog.askopenfilename()
+            if level_name == None:
+                self.resume()
+            elif not self._level.endswith('.txt'):
                 messagebox.showinfo("File error","A level file should end with .txt")
                 self.load_level()
             else:
+                self._level = level_name
                 self.resume()
                 self.reset_level(resetplayer)
         elif filename == "END":
