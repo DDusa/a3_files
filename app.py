@@ -202,11 +202,8 @@ class MarioApp:
         self._player = Player(name = self.character, max_health=self.configuration["health"])
 
         self._renderer = MarioViewRenderer(BLOCK_IMAGES, ITEM_IMAGES, MOB_IMAGES)
-        self.reset_world(self._level)
-        size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._world.get_pixel_size())))
-        self._view = GameView(master, size, self._renderer)
-        self._view.pack()
 
+        self.reset_world(self._level)
         self.bind()
 
 
@@ -661,11 +658,16 @@ class MarioApp:
         if "y" in self.configuration:
             starting_y = self.configuration["y"]
 
-
+        self._builder.clear()
         self._world = load_world(self._builder, new_level)
         self._world.add_player(self._player, starting_x, starting_y)
         size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._world.get_pixel_size())))
+        try:
+            self._view.destroy()
+        except:
+            pass
         self._view = GameView(self._master, size, self._renderer)
+        self._view.pack(side = tk.TOP)
         self._setup_collision_handlers()
 
     def bind(self):
@@ -701,8 +703,9 @@ class MarioApp:
                 self.load_level()
             else:
                 self._level = level_name
-                self.resume()
                 self.reset_level(resetplayer)
+                self.resume()
+
         elif filename == "END":
             messagebox.showinfo("CONGRATULATIONS", "You won the game!")
             self.exit()
@@ -912,10 +915,10 @@ class StatusBar(tk.Frame):
 
         self.canvas = tk.Canvas(master, width = self._width, height = self.BARHEIGHT, bg ='black',  highlightthickness = 0, borderwidth = 0)
         self.display_health(player)
-        self.canvas.pack()
+        self.canvas.pack(side =tk.BOTTOM)
 
         self._score_label = tk.Label(master, text="Score: {0}".format(self._score))
-        self._score_label.pack()
+        self._score_label.pack(side =tk.BOTTOM)
 
     def display_health(self, player):
 
