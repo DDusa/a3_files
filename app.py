@@ -440,17 +440,26 @@ class MarioApp:
         delete_button.pack(side = tk.RIGHT)
         self.create_block_button["delete_button"] = (delete_button,None)
 
-        # delete_button = tk.Button(self.mapeditor_level, text="Delete", width="16", command = self.delete_callback)
-        # delete_button.pack(side = tk.RIGHT)
-        # self.create_block_button["delete_button"] = (delete_button,None)
-        #
-        # delete_button = tk.Button(self.mapeditor_level, text="Delete", width="16", command = self.delete_callback)
-        # delete_button.pack(side = tk.RIGHT)
-        # self.create_block_button["delete_button"] = (delete_button,None)
-        #
+        scroll_right_button = tk.Button(self.mapeditor_level, text=">>>", command = self.scroll_right)
+        scroll_right_button.pack(side = tk.RIGHT)
+        self.create_block_button["scroll_right_button"] = (scroll_right_button,None)
+
+        scroll_left_button = tk.Button(self.mapeditor_level, text="<<<", command = self.scroll_left)
+        scroll_left_button.pack(side = tk.RIGHT)
+        self.create_block_button["scroll_left_button"] = (scroll_left_button,None)
+
         self._map_view.bind("<Button-1>", self.edit_block_on_map)
         self.block_picked = None
         self.map_editor_view_center = 0
+
+    def scroll_left(self):
+        if self.map_editor_view_center >= BLOCK_SIZE:
+            self.map_editor_view_center -= BLOCK_SIZE
+            self.scroll_editing_map()
+    def scroll_right(self):
+        if self.map_editor_view_center <= self._world.get_pixel_size()[0]-BLOCK_SIZE:
+            self.map_editor_view_center += BLOCK_SIZE
+            self.scroll_editing_map()
 
     def scroll_editing_map(self):
         half_screen = self._master.winfo_width() / 2
@@ -470,7 +479,7 @@ class MarioApp:
     def edit_block_on_map(self, event):
         #Add chosen block to map upon clicking if a create block is picked before.
         self.map_edited = True
-        editing_x_position = event.x // BLOCK_SIZE
+        editing_x_position = (event.x + self._view.get_offset()[0]) // BLOCK_SIZE
         editing_y_position = event.y // BLOCK_SIZE
 
         if self.block_picked == "tunnel":
@@ -509,7 +518,7 @@ class MarioApp:
                 fill = max_width - len(line)
                 line_str = line + fill * " "
                 if y == editing_y_position:
-                    line_list = list(line )
+                    line_list = list(line)
                     line_list[editing_x_position] = sign
                     line_str = "".join(line_list)
                 modified_file.write(line_str)
@@ -526,7 +535,6 @@ class MarioApp:
             self._map = load_world(self._map_builder, self.editing_level_name)
             self._map_builder.clear()
             self._map_view.delete(tk.ALL)
-            self.scroll_editing_map()
             self._map_view.draw_entities(self._map.get_all_things())
 
     def add_create_block(self, block_name):
@@ -660,6 +668,7 @@ class MarioApp:
 
         self._builder.clear()
         self._world = load_world(self._builder, new_level)
+        self._setup_collision_handlers()
         self._world.add_player(self._player, starting_x, starting_y)
         size = tuple(map(min, zip(MAX_WINDOW_SIZE, self._world.get_pixel_size())))
         try:
@@ -668,7 +677,7 @@ class MarioApp:
             pass
         self._view = GameView(self._master, size, self._renderer)
         self._view.pack(side = tk.TOP)
-        self._setup_collision_handlers()
+
 
     def bind(self):
         """Bind all the keyboard events to their event handlers."""
@@ -913,12 +922,12 @@ class StatusBar(tk.Frame):
         self._score = player.get_score()
         self._width = MAX_WINDOW_SIZE[0]
 
-        self.canvas = tk.Canvas(master, width = self._width, height = self.BARHEIGHT, bg ='black',  highlightthickness = 0, borderwidth = 0)
-        self.display_health(player)
-        self.canvas.pack(side =tk.BOTTOM)
 
         self._score_label = tk.Label(master, text="Score: {0}".format(self._score))
         self._score_label.pack(side =tk.BOTTOM)
+        self.canvas = tk.Canvas(master, width = self._width, height = self.BARHEIGHT, bg ='black',  highlightthickness = 0, borderwidth = 0)
+        self.display_health(player)
+        self.canvas.pack(side =tk.BOTTOM)
 
     def display_health(self, player):
 
