@@ -46,7 +46,7 @@ class Player(DynamicEntity):
         self.invincible_time = time
 
     def step(self, time_delta, game_data):
-        """Run in steo function in main to reduce the time of invincible"""
+        """Run in step function in main to reduce the time of invincible"""
         if self.is_invincible():
             self.invincible_time -= 1
 

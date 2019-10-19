@@ -2,7 +2,7 @@
 Simple 2d world where the player can interact with the items in the world.
 """
 
-__author__ = ""
+__author__ = "Haoran Jin"
 __date__ = ""
 __version__ = "1.1.0"
 __copyright__ = "The University of Queensland, 2019"
@@ -783,7 +783,6 @@ class MarioApp:
     def redraw(self):
         """Redraw all the entities in the game canvas."""
         self._view.delete(tk.ALL)
-
         self._view.draw_entities(self._world.get_all_things())
 
     def scroll(self):
@@ -965,8 +964,12 @@ class MarioApp:
         Returns:bool True
         """
         mob.on_hit(arbiter, (self._world, player))
+        if mob.get_id() == "mushroom":
+            if mob.get_squished_time() > 0:
+                return False
         if player.is_invincible():
             self._world.remove_mob(mob)
+            return False
         return True
 
     def _handle_player_separate_block(self, player: Player, block: Block, data,
@@ -1051,7 +1054,11 @@ class Mushroom(Mob):
         """
             Init from supercalss, Mob, with size weight and temp
         """
-        super().__init__(self._id, size=(16, 16), weight=300, tempo=100)
+        super().__init__(self._id, size=(16, 16), weight=300, tempo=50)
+        # _squished_animation_time -1 means the mushroom is not squished
+        self._squished_animation_time = -1
+        self.mushroom_animation_count = 0
+        self.mushroom_pic_number = 0
 
     def on_hit(self, event: pymunk.Arbiter, data):
         """
@@ -1070,13 +1077,17 @@ class Mushroom(Mob):
         if get_collision_direction(player, self) != "A":
             self.collide(player)
             player.change_health(-1)
+
             if(player_vx > 0):
                 player.set_velocity([-100,player_vy])
             else:
                 player.set_velocity([100,player_vy])
         else:
-            player.set_velocity([player_vx, 400])
-            world.remove_mob(self)
+            if self._squished_animation_time == -1:
+                self._squished_animation_time = 100
+            self.set_velocity((0,0))
+            player.set_velocity([player_vx, 200])
+
 
     def collide(self, entity):
         """
@@ -1085,9 +1096,21 @@ class Mushroom(Mob):
             entity: the entity mushroom collide with.
 
         """
-        if get_collision_direction(entity, self) == "R" or \
-                get_collision_direction(entity, self) == "L":
+        collide_direction = get_collision_direction(entity, self)
+        if  collide_direction == "R" or collide_direction == "L":
             self.set_tempo(-self.get_tempo())
+
+    def get_squished_time(self):
+        return self._squished_animation_time
+
+
+    def step(self, time_delta, game_data):
+        super().step(time_delta, game_data)
+        world,player = game_data
+        if self._squished_animation_time >= 1:
+            self._squished_animation_time -= 1
+        if self.get_squished_time() == 0:
+            world.remove_mob(self)
 
 class BounceBlock(Block):
 
@@ -1246,11 +1269,28 @@ class MarioViewRenderer(ViewRenderer):
     @ViewRenderer.draw.register(Player)
     def _draw_player(self, instance: Player, shape: pymunk.Shape,
                      view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
-
+        # if instance.get_name() == "mario":
+            # if instance.is_invincible():
+            #     if shape.body.velocity.y != 0:
+            #         image = self.load_image("invicible_mario_jump" )
+            #     else:
+            #         if shape.body.velocity.x == 0:
+            #             image = self.load_image("invicible_mario_right")
+            #         elif shape.body.velocity.x > 0:
+            #             try:
+            #                 self.walk_animation_count = (self.walk_animation_count + 1) % 4
+            #             except:
+            #                 self.walk_animation_count = 0
+            #
+            #             image = self.load_image("invicible_mario_right"+str(self.walk_animation_count))
+            #         else:
+            #             image = self.load_image("invicible_mario_left"+str(self.walk_animation_count))
+            # else:
         if shape.body.velocity.x >= 0:
             image = self.load_image("mario_right")
         else:
             image = self.load_image("mario_left")
+        # pass
 
         return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
                                   image=image, tags="player")]
@@ -1277,12 +1317,50 @@ class MarioViewRenderer(ViewRenderer):
         return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
                                   image=image, tags="block")]
 
+    @ViewRenderer.draw.register(Coin)
+    def _draw_coin(self, instance: Coin, shape: pymunk.Shape,
+                            view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
+        try:
+            instance.coin_animation_count = instance.coin_animation_count%10 + 1
+            instance.coin_pic_number = (instance.mushroom_pic_number + instance.mushroom_animation_count//10)%4
+        except:
+            instance.coin_animation_count = 0
+            instance.coin_pic_number = 0
 
+        image = self.load_image("spinning_coin" + str(instance.coin_pic_number))
+
+        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
+                                  image=image, tags="item")]
+
+    @ViewRenderer.draw.register(Mushroom)
+    def _draw_mushroom(self, instance: Mushroom, shape: pymunk.Shape,
+                            view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
+        # -1 means mushroom is not squished
+        if instance.get_squished_time() == -1:
+            try:
+                instance.mushroom_animation_count = instance.mushroom_animation_count % 1000 + 1
+                instance.mushroom_pic_number = (instance.mushroom_pic_number + instance.mushroom_animation_count//10)%2
+            except:
+                instance.mushroom_animation_count = 0
+                instance.mushroom_pic_number = 0
+            image = self.load_image("mushroom_walking" + str(instance.mushroom_pic_number))
+        elif instance.get_squished_time() >= 0:
+            image = self.load_image("mushroom_squished")
+
+        return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
+                                  image=image, tags="mob")]
+
+# self.sprite_loader = SpriteSheetLoader()
+# self.sprite_loader.cut_from
 class SpriteSheetLoader():
     """
     A class to read  pictures from the spritesheet.
     """
-    def __init__(self, sheet_name, region, pic_name):
+    def __init__(self):
+        self._images ={}
+
+
+    def cut_from(self, sheet_name, region, pic_name):
         """
         Cut pictures from the spritesheet and save it into _image directory
         Args:
@@ -1292,9 +1370,11 @@ class SpriteSheetLoader():
 
         """
         im = Image.open(sheet_name)
-        im = Image.open("spritesheets/characters.png")
         pic = im.crop(region)
-        pic.save("_images/trail.png")
+        pic.save("images/"  + pic_name)
+        self._images[pic_name] = pic
+    def get_img(self, pic_name):
+        return self._image[pic_name]
 
 
 

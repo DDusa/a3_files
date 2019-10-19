@@ -1,6 +1,6 @@
 ==World==
 gravity : 400
-start : level1.txt
+start : test_mushroom.txt
 
 ==Player==
 character : luigi
