@@ -184,7 +184,6 @@ class MarioApp:
         # Wait for window to update before continuing
         master.update_idletasks()
 
-        #Ask for loading configuration
         self.load_config()
         self.status_var_config()
 
@@ -207,7 +206,6 @@ class MarioApp:
         self.bind()
 
 
-        #Create the title and menu
         master.title("Mario")
         self.menu()
         self._status_bar = StatusBar(master, self._player)
@@ -219,20 +217,25 @@ class MarioApp:
         """
             Initialize the variables representing status of the game
         """
+
         self._pause = False
         self._exit = False
         self.pressed_swtich_list = []
         self.invisible_list = []
 
     def load_config(self):
+        """
+            Load configuration from file
+        """
+
+        self.configuration = {}
+
         config_filename = filedialog.askopenfilename()
         try:
             self.config_file_content = open(config_filename, "r").readlines()
         except:
             self.configuration_error('missing')
-        line_index = 0
 
-        self.configuration = {}
 
         for line_content in self.config_file_content:
             self.find_in_line_and_config(line_content, "gravity", int)
@@ -249,12 +252,27 @@ class MarioApp:
                           "max_velocity", "start")
 
     def check_config(self, *args):
+        """
+        Check if there is configuration not valid load from the file
 
+        Args: *args :the configuration name to be checked.
+        """
         for key_name in args:
             if key_name not in self.configuration:
                 self.configuration_error('invalid')
 
-    def find_in_line_and_config(self,line_content, string_to_find_, val_type, ):
+    def find_in_line_and_config(self, line_content, string_to_find_, val_type, ):
+        """
+        Find a configuration type in one line and set it to configuaration with val_type if found
+
+        Args:
+            line_content: the line to find the string in
+            string_to_find_: the string to find
+            val_type:
+
+        Returns: True if string found, False if not found.
+
+        """
         index = line_content.find(":")
         if string_to_find_ == line_content[0: index].strip():
             try:
@@ -266,6 +284,12 @@ class MarioApp:
             return False
 
     def configuration_error(self, error):
+        """
+        Deal with configuartion error information show.
+
+        Args:
+            error: errroe type in string
+        """
         if error == 'missing':
             messagebox.showinfo("CONFIGURE ERROR","Configuration missing!")
         if error == 'invalid':
@@ -275,6 +299,9 @@ class MarioApp:
         exit(0)
 
     def menu(self):
+        """
+            Add menu bar to the game
+        """
         menubar = tk.Menu(self._master)
         self._master.config(menu=menubar)
 
@@ -292,6 +319,9 @@ class MarioApp:
         gamemenu.add_command(label="High Score", command=self.read_highscore)
 
     def edit_level(self):
+        """
+            Pause the game
+        """
         self.pause()
         self.mapeditor_level = tk.Toplevel()
         self.mapeditor_level.title("Level editor")
@@ -453,33 +483,34 @@ class MarioApp:
         self.map_editor_view_center = 0
 
     def scroll_left(self):
-        if self.map_editor_view_center >= BLOCK_SIZE:
-            self.map_editor_view_center -= BLOCK_SIZE
+        if self.map_editor_view_center >= 16*BLOCK_SIZE:
+            self.map_editor_view_center -= 16*BLOCK_SIZE
             self.scroll_editing_map()
     def scroll_right(self):
-        if self.map_editor_view_center <= self._world.get_pixel_size()[0]-BLOCK_SIZE:
-            self.map_editor_view_center += BLOCK_SIZE
+        if self.map_editor_view_center <= self._map.get_pixel_size()[0] - 16*BLOCK_SIZE:
+            self.map_editor_view_center += 16*BLOCK_SIZE
             self.scroll_editing_map()
 
     def scroll_editing_map(self):
         half_screen = self._master.winfo_width() / 2
-        world_size = self._world.get_pixel_size()[0] - half_screen
+        world_size = self._map.get_pixel_size()[0] - half_screen
         # Left side
         if self.map_editor_view_center <= half_screen:
-            self._view.set_offset((0, 0))
+            self._map_view.set_offset((0, 0))
 
         # Between left and right sides
         elif half_screen <= self.map_editor_view_center <= world_size:
-            self._view.set_offset((half_screen - self.map_editor_view_center, 0))
+            self._map_view.set_offset((half_screen - self.map_editor_view_center, 0))
 
         # Right side
         elif self.map_editor_view_center >= world_size:
             self._map_view.set_offset((half_screen - world_size, 0))
+        self.redraw_map_editor()
 
     def edit_block_on_map(self, event):
         #Add chosen block to map upon clicking if a create block is picked before.
         self.map_edited = True
-        editing_x_position = (event.x + self._view.get_offset()[0]) // BLOCK_SIZE
+        editing_x_position = int((event.x - self._map_view.get_offset()[0]) // BLOCK_SIZE)
         editing_y_position = event.y // BLOCK_SIZE
 
         if self.block_picked == "tunnel":
@@ -516,9 +547,9 @@ class MarioApp:
             max_width = len(max(unmodified_content))
             for y, line in enumerate(unmodified_content):
                 fill = max_width - len(line)
-                line_str = line + fill * " "
+                line_str = line.rstrip("\n") + fill * " " + "\n"
                 if y == editing_y_position:
-                    line_list = list(line)
+                    line_list = list(line_str)
                     line_list[editing_x_position] = sign
                     line_str = "".join(line_list)
                 modified_file.write(line_str)
@@ -533,9 +564,12 @@ class MarioApp:
 
 
             self._map = load_world(self._map_builder, self.editing_level_name)
-            self._map_builder.clear()
-            self._map_view.delete(tk.ALL)
-            self._map_view.draw_entities(self._map.get_all_things())
+            self.redraw_map_editor()
+
+    def redraw_map_editor(self):
+        self._map_builder.clear()
+        self._map_view.delete(tk.ALL)
+        self._map_view.draw_entities(self._map.get_all_things())
 
     def add_create_block(self, block_name):
         #Add create buttons of block with block image to the bottom of the map
@@ -872,6 +906,18 @@ class MarioApp:
 
     def _handle_player_collide_block(self, player: Player, block: Block, data,
                                      arbiter: pymunk.Arbiter) -> bool:
+        """
+        Callback to handle with player collide with a block
+        Args:
+            player(Player): the player in the game
+            block(Block): the block player collide with
+            data(dict):data that was added with this collision handler (see data parameter in
+                         World.add_collision_handler)
+            arbiter (pymunk.Arbiter)
+
+        Returns:False if the item is in invisible list or the seitch pressed, otherwise, True
+
+        """
         if block not in self.invisible_list:
             if block.get_id() == "flag":
                 block.on_hit(self, self._player)
@@ -895,6 +941,9 @@ class MarioApp:
             return False
         
     def invisble_step(self):
+        """
+        Reduce the invisible time for each invisible items in the invisible list when step function is run
+        """
         for invisible in self.invisible_list:
             invisible[1] -= 1
             invisible_block, invisible_time = invisible
@@ -904,6 +953,17 @@ class MarioApp:
 
     def _handle_player_collide_mob(self, player: Player, mob: Mob, data,
                                    arbiter: pymunk.Arbiter) -> bool:
+        """
+        Callback to handle with player collide with a mob
+        Args:
+            player(Player): the player in the game
+            mob(Mob): the mob player collide with
+            data(dict):data that was added with this collision handler (see data parameter in
+                         World.add_collision_handler)
+            arbiter (pymunk.Arbiter)
+
+        Returns:bool True
+        """
         mob.on_hit(arbiter, (self._world, player))
         if player.is_invincible():
             self._world.remove_mob(mob)
@@ -911,17 +971,37 @@ class MarioApp:
 
     def _handle_player_separate_block(self, player: Player, block: Block, data,
                                       arbiter: pymunk.Arbiter) -> bool:
+        """
+        Callback to handle with player seperate with a block
+        Args:
+            player(Player): the player in the game
+            block(Block): the block player collide with
+            data(dict):data that was added with this collision handler (see data parameter in
+                         World.add_collision_handler)
+            arbiter (pymunk.Arbiter)
+
+        Returns:bool True
+        """
         if(block.get_id() == 'tunnel'):
             player.off_tunnel()
         return True
 
 class StatusBar(tk.Frame):
+    """
+        A class to create status bar in the view
+    """
+
     BARHEIGHT = 20
     def __init__(self, master, player):
+        """
+        Construct a statusbar consisting of health bar and score bar in the game view
+        Args:
+            master (tk.Tk | tk.Toplevel | tk.Frame): The tkinter master widget
+            player(Player): the player in the game
+        """
 
         self._score = player.get_score()
         self._width = MAX_WINDOW_SIZE[0]
-
 
         self._score_label = tk.Label(master, text="Score: {0}".format(self._score))
         self._score_label.pack(side =tk.BOTTOM)
@@ -930,6 +1010,12 @@ class StatusBar(tk.Frame):
         self.canvas.pack(side =tk.BOTTOM)
 
     def display_health(self, player):
+
+        """
+        Draw the health bar in the game
+        Args:
+            player(Playe): The player in the game
+        """
 
         health_percent =  player.get_health() / player.get_max_health()
         if health_percent > 0.5:
@@ -941,25 +1027,43 @@ class StatusBar(tk.Frame):
 
         if player.is_invincible():
             color = 'yellow'
-
         self.canvas.create_rectangle(0, 0, health_percent * self._width, self.BARHEIGHT , fill= color)
 
     def update_status(self, player):
+        """
+        The updating of the status bar in every step
+        Args:
+            player(Player): The player in the game
 
+        """
         self.canvas.delete("all")
         self.display_health(player)
         self._score = player.get_score()
         self._score_label.config(text = "Score: {0}".format(self._score))
 
 class Mushroom(Mob):
-
+    """
+    A mushroom class in tbe game is a kind of mob player lose health when collide with mushroom
+    """
     _id = "mushroom"
 
     def __init__(self):
+        """
+            Init from supercalss, Mob, with size weight and temp
+        """
         super().__init__(self._id, size=(16, 16), weight=300, tempo=100)
 
     def on_hit(self, event: pymunk.Arbiter, data):
+        """
+        Deal with player colliding with mushroom
+        If player land on the top of mushroom mob, mushroom will be removed.
+        If player come from left or right, player's health shoould be reduced by 1,
+         and player should be bounced back.
+        Args:
+            event:
+            data:
 
+        """
         world, player = data
         player_vx, player_vy = player.get_velocity()
 
@@ -975,14 +1079,27 @@ class Mushroom(Mob):
             world.remove_mob(self)
 
     def collide(self, entity):
+        """
+        Deal with mushroom turn to opposite when collide with other things
+        Args:
+            entity: the entity mushroom collide with.
+
+        """
         if get_collision_direction(entity, self) == "R" or \
                 get_collision_direction(entity, self) == "L":
             self.set_tempo(-self.get_tempo())
 
 class BounceBlock(Block):
-    _id = "bounce_block"
 
+    """
+        A bounce block class in the game, player would bounce when step on it
+    """
+
+    _id = "bounce_block"
     def on_hit(self, event, data):
+        """
+        When player land on the top of a bounce block, he will be bounced up.
+        """
         world, player = data
         if get_collision_direction(player, self) == "A":
             vx = data[1].get_velocity()[0]
@@ -990,19 +1107,33 @@ class BounceBlock(Block):
             data[1].set_velocity([vx, vy])
 
 class Star(DroppedItem):
+    """
+    Player would be vincible after picking up a star.
+    """
     _id = "star"
 
     def collect(self, player: Player):
+        """
+        Set player to invincible when star is collected.
+        Args:
+            player:
+        """
         player.invincible()
 
 class Goal(Block):
+    """
+    A class for the goal in the game.
+    """
     _id = "goal"
     _cell_size = (1, 1)
 
-    def get_cell_size(self) -> Tuple[int, int]:
-        return self._cell_size
-
     def triger(self, app, trigger_id = None):
+        """
+        When a goal is activated, the game should load another level and record the highscore for current level.
+        Args:
+            app:
+            trigger_id:
+        """
         now_level_line = 0
         for line_content in app.config_file_content:
             if line_content.find('==' + app._level + '==')!= -1:
@@ -1017,40 +1148,62 @@ class Goal(Block):
                 found = True
                 break
         if found == False:
+            app.write_highscore()
             messagebox.showinfo("Configure Error","Can't find next level")
             app.exit()
         else:
-            app.load_level(filename = app.configuration[trigger_id], resetplayer=False)
             app.write_highscore()
+            app.load_level(filename = app.configuration[trigger_id], resetplayer=False)
 
 class Flag(Goal):
+    """
+    Player go to next level once they collide with a flag and would get bounce health if they land on top of it.
+    """
     _id = "flag"
     _cell_size = GOAL_SIZES.get(_id)
 
     def on_hit(self, app, player):
+        """
+        callback when user hit a flag
+        """
         if get_collision_direction(player, self) == "A":
             player.change_health(1)
         super().triger(app,"goal")
 
 class Tunnel(Goal):
+    """
+    When player pressed 'DOWN' on top of the tunnel, they will go to bounce level
+    """
     _id = "tunnel"
     _cell_size = GOAL_SIZES.get(_id)
 
     def on_hit(self,player):
+        """
+        When player hit with a tunnel , check the direction.
+        Args:
+            player:
+        """
         if get_collision_direction(player, self) == "A":
             player.on_tunnel(self)
 
 class Switch(Block):
+    """
+       When player land on top of the switch ,the block with in arange to the switch will disappear.
+    """
     _id = "switch"
-    _invisible_radius = 50
+    _invisible_radius = 64
 
     def __init__(self):
-
+        """
+        Construct a switch block and set the it to unpressed by signing pressed_time to 0
+        """
         super().__init__()
         self.pressed_time = 0
 
     def on_hit(self, event, data):
-
+        """
+        callback when switch is hit by user
+        """
         world, player = data
 
         if get_collision_direction(player, self) == "A":
@@ -1058,16 +1211,33 @@ class Switch(Block):
                 self.set_pressed_time()
 
     def set_pressed_time(self, time = 1000):
+        """
+        Set the switch status to pressed
+        Args:
+            time: set the switch pressed time to 10s
+        """
         self.pressed_time = time
 
     def step(self, time_delta, game_data):
+        """
+            Reduce pressed time by 1 count for the pressed time
+        """
         if self.is_pressed():
             self.pressed_time -= 1
 
     def is_pressed(self):
+        """
+        Return if the switch is pressed
+        Returns: int the left presssed time for the switch
+        """
         return self.pressed_time > 0
 
     def get_invisible_radius(self):
+        """
+        return the radius for blocking
+        Returns: int the blocking radius
+
+        """
         return self._invisible_radius
 
 class MarioViewRenderer(ViewRenderer):
@@ -1107,10 +1277,26 @@ class MarioViewRenderer(ViewRenderer):
         return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
                                   image=image, tags="block")]
 
+
 class SpriteSheetLoader():
-    # def load
-    # im = Image.open("bride.jpg")
-    pass
+    """
+    A class to read  pictures from the spritesheet.
+    """
+    def __init__(self, sheet_name, region, pic_name):
+        """
+        Cut pictures from the spritesheet and save it into _image directory
+        Args:
+            sheet_name(str):the sheet to cut pics from
+            region(tuple(int,int,int,int)): the starting and ending x,y of the cutting region
+            pic_name: the name of the image get from cutting
+
+        """
+        im = Image.open(sheet_name)
+        im = Image.open("spritesheets/characters.png")
+        pic = im.crop(region)
+        pic.save("_images/trail.png")
+
+
 
 def main():
     root = tk.Tk()

@@ -1,6 +1,6 @@
 ==World==
 gravity : 400
-start : finally.txt
+start : level1.txt
 
 ==Player==
 character : luigi
