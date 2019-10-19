@@ -5,7 +5,7 @@ start : test_mushroom.txt
 ==Player==
 character : luigi
 x : 0
-y : 250
+y : 0
 mass : 100
 health : 4
 max_velocity : 100

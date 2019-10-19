@@ -179,6 +179,7 @@ class MarioApp:
         Parameters:
             master (tk.Tk): tkinter root widget
         """
+        
         self._master = master
 
         # Wait for window to update before continuing
@@ -222,6 +223,7 @@ class MarioApp:
         self._exit = False
         self.pressed_swtich_list = []
         self.invisible_list = []
+        self.image_counter = 0
 
     def load_config(self):
         """
@@ -257,6 +259,7 @@ class MarioApp:
 
         Args: *args :the configuration name to be checked.
         """
+        
         for key_name in args:
             if key_name not in self.configuration:
                 self.configuration_error('invalid')
@@ -266,13 +269,13 @@ class MarioApp:
         Find a configuration type in one line and set it to configuaration with val_type if found
 
         Args:
-            line_content: the line to find the string in
-            string_to_find_: the string to find
-            val_type:
+            line_content(str): the line to find the string in
+            string_to_find_(str): the string to find
+            val_type(type): the type for the value to be recorded
 
         Returns: True if string found, False if not found.
-
         """
+        
         index = line_content.find(":")
         if string_to_find_ == line_content[0: index].strip():
             try:
@@ -288,8 +291,9 @@ class MarioApp:
         Deal with configuartion error information show.
 
         Args:
-            error: errroe type in string
+            error(str): errroe type in string
         """
+        
         if error == 'missing':
             messagebox.showinfo("CONFIGURE ERROR","Configuration missing!")
         if error == 'invalid':
@@ -320,8 +324,9 @@ class MarioApp:
 
     def edit_level(self):
         """
-            Pause the game
+            Pause the game and edit the level
         """
+        
         self.pause()
         self.mapeditor_level = tk.Toplevel()
         self.mapeditor_level.title("Level editor")
@@ -335,6 +340,10 @@ class MarioApp:
         self.mapeditor_level.protocol("WM_DELETE_WINDOW", self.edit_level_closing)
 
     def create_new(self):
+        """
+        The interface for entering the level data for creating a new level
+        """
+        
         self.new_level_button.destroy()
         self.edit_level_button.destroy()
 
@@ -357,6 +366,9 @@ class MarioApp:
         self.next_button.grid(row=0, column=2, rowspan = 3, sticky= tk.W + tk.E + tk.N + tk.S)
 
     def create_new_level(self):
+        """
+        Create a new level with data given and check if the level with given name has existed 
+        """
         if not self.level_name_entry.get():
             messagebox.showinfo("Create error","Level name can't be None!")
         else:
@@ -383,7 +395,6 @@ class MarioApp:
                 except:
                     messagebox.showinfo("Create error", "Level width must be a int!")
                     width_invalid = True
-
 
             if level_existed:
                 if edit_exist:
@@ -413,8 +424,10 @@ class MarioApp:
                     self.edit_map(self.editing_level_name)
 
     def edit_old(self):
-
-
+        """
+        Edit existing level file
+        """
+        
         self.editing_level_name = filedialog.askopenfilename()
         try:
 
@@ -430,8 +443,12 @@ class MarioApp:
             self.edit_map(self.editing_level_name)
 
     def edit_map(self, level_to_edit):
-        #read the file to edit and save
-        #view of editor
+        """
+        Create the view of editor to edit the level with given name 
+        Args:
+            level_to_edit(str): The name for the level to edit. 
+        """
+        
         map_builder = WorldBuilder(BLOCK_SIZE, gravity=(0, self.configuration["gravity"]), fallback=create_unknown)
         map_builder.register_builders(BLOCKS.keys(), create_block)
         map_builder.register_builders(ITEMS.keys(), create_item)
@@ -483,15 +500,27 @@ class MarioApp:
         self.map_editor_view_center = 0
 
     def scroll_left(self):
+        """
+        Scroll the view center to the left for map editor
+        """
+        
         if self.map_editor_view_center >= 16*BLOCK_SIZE:
             self.map_editor_view_center -= 16*BLOCK_SIZE
             self.scroll_editing_map()
     def scroll_right(self):
+        """
+        Scroll the view center to the right for map editor
+        """
+
         if self.map_editor_view_center <= self._map.get_pixel_size()[0] - 16*BLOCK_SIZE:
             self.map_editor_view_center += 16*BLOCK_SIZE
             self.scroll_editing_map()
 
     def scroll_editing_map(self):
+        """
+        Scroll the editing map with the view center
+        """
+        
         half_screen = self._master.winfo_width() / 2
         world_size = self._map.get_pixel_size()[0] - half_screen
         # Left side
@@ -508,7 +537,10 @@ class MarioApp:
         self.redraw_map_editor()
 
     def edit_block_on_map(self, event):
-        #Add chosen block to map upon clicking if a create block is picked before.
+        """
+        Add chosen block to map upon clicking if a create block is picked before.
+        """
+        
         self.map_edited = True
         editing_x_position = int((event.x - self._map_view.get_offset()[0]) // BLOCK_SIZE)
         editing_y_position = event.y // BLOCK_SIZE
@@ -567,12 +599,21 @@ class MarioApp:
             self.redraw_map_editor()
 
     def redraw_map_editor(self):
+        """
+        Redraw the map editor upon adding new blocks to it
+        """
+        
         self._map_builder.clear()
         self._map_view.delete(tk.ALL)
         self._map_view.draw_entities(self._map.get_all_things())
 
     def add_create_block(self, block_name):
-        #Add create buttons of block with block image to the bottom of the map
+        """
+        Add create buttons of block with block image to the bottom of the map
+        Args:
+            block_name: the block name to be added
+        """
+        
         button_callback = self.create_callback(block_name)
         button_image = tk.PhotoImage(file="images/" + block_name + ".png")
 
@@ -582,12 +623,17 @@ class MarioApp:
         self.create_block_button[block_name] = (button, button_image)
 
     def delete_callback(self):
-        #Delete button callback
+        """
+        Delete button callback
+        """
         self.mapeditor_level.config(cursor="X_cursor")
         self.block_picked = "delete"
 
     def create_callback(self, block_name):
-        #Create call back function dynamiclly for every add block button in the map editor
+        """
+        Create call back function dynamiclly for every add block button in the map editor
+        """
+        
         def callback():
             self.block_picked = block_name
             self.mapeditor_level.config(cursor="plus")
@@ -596,13 +642,19 @@ class MarioApp:
         return callback
 
     def save_edited_level(self):
-        #Save edited level and continue previous game
+        """
+        Save edited level and continue previous game
+        """
+        
         self.mapeditor_level.destroy()
         self.map_edited = False
         self.resume()
 
     def edit_level_closing(self):
-        #Deal with editor closing, if level edited and not saved ask if save.
+        """
+        Deal with editor closing, if level edited and not saved ask if save.
+        """
+        
         if self.map_edited:
             if messagebox.askokcancel("Edited level not saving!", "Leave without saving?"):
                 self.mapeditor_level.destroy()
@@ -614,15 +666,23 @@ class MarioApp:
             self.resume()
 
     def pause(self):
-        #pause the game by stop step()
+        """
+        pause the game by stop step()
+        """
         self._pause = True
 
     def resume(self):
-        #resume the game by cotinue step()
+        """
+        resume the game by cotinue step()
+        """
+        
         self._pause = False
 
     def write_highscore(self):
-        #Write high score if reach next level
+        """
+        Write high score if reach next level
+        """
+        
         self.pause()
         self.write_highscore_top_level = tk.Toplevel()
         self.write_highscore_top_level.title("Enter ur name for highscore!")
@@ -638,7 +698,10 @@ class MarioApp:
         self.write_highscore_top_level.protocol("WM_DELETE_WINDOW", self.write_highscore_closing)
 
     def write_highscore_closing(self):
-        #If high score is not saved, and close the high score record window, ask wether save.
+        """
+        If high score is not saved, and close the high score record window, ask wether save.
+        """
+        
         if messagebox.askokcancel("Record not saving!", "Leave without saving?"):
             self.resume()
             self.write_highscore_top_level.destroy()
@@ -647,7 +710,10 @@ class MarioApp:
             self.write_highscore()
 
     def enter(self, event=None):
-        #Record the high score is the enter button is pressed
+        """
+        Record the high score is the enter button is pressed
+        """
+        
         highscore = open(self._last_level + "high_score.txt", "a+")
         name = self.highscore_entry.get()
         score = str(self._player.get_score())
@@ -657,7 +723,10 @@ class MarioApp:
         self.resume()
 
     def read_highscore(self):
-        #Read high score i
+        """
+        Read the high score for current level
+        """
+        
         high_score_list = []
         text_to_show = 'rank      name      score\n'
         num_of_record = 0
@@ -685,14 +754,28 @@ class MarioApp:
         self.read_highscore_top_level.protocol("WM_DELETE_WINDOW", self.read_highscore_closing)
 
     def read_highscore_closing(self):
+        """
+        close the read highscore menu
+        """
         self.resume()
         self.read_highscore_top_level.destroy()
 
     def takeScore(self, high_score_list):
+        """
+        Take the highscore data from high_score_list
+        Args:
+            high_score_list(list): The list recording highsore informatioon 
+        """
+        
         return int(high_score_list[1])
 
     def reset_world(self, new_level="level1.txt"):
-
+        """
+        Reset the world with given name
+        Args:
+            new_level: the name for the level to be reset
+        """
+        
         starting_x = BLOCK_SIZE
         starting_y = BLOCK_SIZE
         if "x" in self.configuration:
@@ -714,28 +797,43 @@ class MarioApp:
 
 
     def bind(self):
-        """Bind all the keyboard events to their event handlers."""
-        self._master.bind("<Key>", self._move_event)
+        """
+        Bind all the keyboard events to their event handlers.
+        """
+        
+        self._master.bind("<Key>", self.move_event)
 
-    def _move_event(self, event):
+    def move_event(self, event):
+        """
+        Deal with move event for the player
+        """
+
         if event.keysym == 'Right' or event.keysym == 'r'or event.keysym == 'd':
             vx = MARIO_VEL['vx']
             vy = self._player.get_velocity()[1]
-            self._move(vx, vy)
+            self.move(vx, vy)
             print('r')
         elif event.keysym == 'Left' or event.keysym == 'l' or event.keysym == 'a':
             vx = -MARIO_VEL['vx']
             vy = self._player.get_velocity()[1]
-            self._move(vx, vy)
+            self.move(vx, vy)
             print('l')
         elif event.keysym == 'Up' or event.keysym == 'w' or event.keysym == 'space':
-            self._jump()
+            self.jump()
             print('u')
         elif event.keysym == 'Down' or event.keysym == 's':
-            self._duck()
+            self.duck()
             print('d')
 
     def load_level(self, filename = None, resetplayer = True):
+        """
+        Load level with given level name
+        Reset the level view and if reset player is True, the player should be reset too.
+        Args:
+            filename(str):The level to be load
+            resetplayer(Bool): Wether reset player
+        """
+
         if not filename:
             self.pause()
             level_name = filedialog.askopenfilename()
@@ -763,11 +861,21 @@ class MarioApp:
                 self.exit()
 
     def reset_level(self, resetplayer = True):
+        """
+        Reset the level view and if reset player is True, the player should be reset too.
+        Args:
+            resetplayer(Bool): Wether reset player
+        """
+
         if resetplayer:
             self._player = Player(name = self.character, max_health=self.configuration["health"])
         self.reset_world(self._level)
 
     def dead_ask_reset(self):
+        """
+        Ask player if want to reset after death
+        """
+
         if self._player.is_dead():
              reply = messagebox.askquestion(type=messagebox.YESNO,
                                             title="You are dead!",
@@ -778,17 +886,26 @@ class MarioApp:
                  self.exit()
 
     def exit(self):
+        """
+        exit the game
+        """
+
         self._exit = True
 
     def redraw(self):
-        """Redraw all the entities in the game canvas."""
+        """
+        Redraw all the entities in the game canvas.
+        """
+
         self._view.delete(tk.ALL)
         self._view.draw_entities(self._world.get_all_things())
 
     def scroll(self):
-        """Scroll the view along with the player in the center unless
+        """
+        Scroll the view along with the player in the center unless
         they are near the left or right boundaries
         """
+
         x_position = self._player.get_position()[0]
         half_screen = self._master.winfo_width() / 2
         world_size = self._world.get_pixel_size()[0] - half_screen
@@ -806,8 +923,7 @@ class MarioApp:
             self._view.set_offset((half_screen - world_size, 0))
 
     def step(self):
-        """Step the world physics and redraw the canvas."""
-
+        """Step the world physics, redraw the canvas, update the status bad, deal with game pause and player death."""
 
         if self._pause == True:
             pass
@@ -819,28 +935,45 @@ class MarioApp:
             self.scroll()
             self.redraw()
             self.dead_ask_reset()
-
-
         if self._exit == True:
             exit(0)
-
         self._master.after(10, self.step)
 
-    def _move(self, dx, dy):
+    def move(self, dx, dy):
+        """
+        Move with given speed
+        Args:
+            dx(int): x speed
+            dy(int): y speed
+
+        """
+        
         self._player.set_velocity([dx,dy])
 
-    def _jump(self):
+    def jump(self):
+        """
+        Player can jump when their velocity in y axis is 0
+        """
+        
         vx,vy = self._player.get_velocity()
         if(vy == 0):
             vy = MARIO_VEL['vy']
         self._player.set_velocity([vx, vy])
 
-    def _duck(self):
+    def duck(self):
+        """
+        If player is on tunnel and 'DOWN' key is pressed, player will go to the level for tunnel.
+        """
+        
         if self._player.is_on_tunnel():
             self._player.get_tunnel().triger(self)
             self._player.off_tunnel()
 
     def _setup_collision_handlers(self):
+        """
+        Set up collison handlers for the game
+        """
+        
         self._world.add_collision_handler("player", "item", on_begin=self._handle_player_collide_item)
         self._world.add_collision_handler("player", "block", on_begin=self._handle_player_collide_block,
                                           on_separate=self._handle_player_separate_block)
@@ -851,6 +984,10 @@ class MarioApp:
 
     def _handle_mob_collide_block(self, mob: Mob, block: Block, data,
                                   arbiter: pymunk.Arbiter) -> bool:
+        """
+        Handle with mob cllide with block
+        """
+
         if block not in self.invisible_list:
             if block.get_id() == 'switch' :
                 if block.is_pressed():
@@ -867,10 +1004,18 @@ class MarioApp:
 
     def _handle_mob_collide_item(self, mob: Mob, block: Block, data,
                                  arbiter: pymunk.Arbiter) -> bool:
+        """
+        Handle with mob cllide with item
+        """
+
         return False
 
     def _handle_mob_collide_mob(self, mob1: Mob, mob2: Mob, data,
                                 arbiter: pymunk.Arbiter) -> bool:
+        """
+        Handle with mob cllide with mob
+        """
+
         if mob1.get_id() == "fireball" or mob2.get_id() == "fireball":
             self._world.remove_mob(mob1)
             self._world.remove_mob(mob2)
@@ -915,8 +1060,8 @@ class MarioApp:
             arbiter (pymunk.Arbiter)
 
         Returns:False if the item is in invisible list or the seitch pressed, otherwise, True
-
         """
+        
         if block not in self.invisible_list:
             if block.get_id() == "flag":
                 block.on_hit(self, self._player)
@@ -943,6 +1088,7 @@ class MarioApp:
         """
         Reduce the invisible time for each invisible items in the invisible list when step function is run
         """
+        
         for invisible in self.invisible_list:
             invisible[1] -= 1
             invisible_block, invisible_time = invisible
@@ -963,6 +1109,7 @@ class MarioApp:
 
         Returns:bool True
         """
+        
         mob.on_hit(arbiter, (self._world, player))
         if mob.get_id() == "mushroom":
             if mob.get_squished_time() > 0:
@@ -985,6 +1132,7 @@ class MarioApp:
 
         Returns:bool True
         """
+        
         if(block.get_id() == 'tunnel'):
             player.off_tunnel()
         return True
@@ -1039,6 +1187,7 @@ class StatusBar(tk.Frame):
             player(Player): The player in the game
 
         """
+        
         self.canvas.delete("all")
         self.display_health(player)
         self._score = player.get_score()
@@ -1048,17 +1197,17 @@ class Mushroom(Mob):
     """
     A mushroom class in tbe game is a kind of mob player lose health when collide with mushroom
     """
+    
     _id = "mushroom"
 
     def __init__(self):
         """
             Init from supercalss, Mob, with size weight and temp
         """
-        super().__init__(self._id, size=(16, 16), weight=300, tempo=50)
+        
+        super().__init__(self._id, size=(16, 16), weight=100, tempo=50)
         # _squished_animation_time -1 means the mushroom is not squished
         self._squished_animation_time = -1
-        self.mushroom_animation_count = 0
-        self.mushroom_pic_number = 0
 
     def on_hit(self, event: pymunk.Arbiter, data):
         """
@@ -1066,17 +1215,16 @@ class Mushroom(Mob):
         If player land on the top of mushroom mob, mushroom will be removed.
         If player come from left or right, player's health shoould be reduced by 1,
          and player should be bounced back.
-        Args:
-            event:
-            data:
-
         """
+        
         world, player = data
         player_vx, player_vy = player.get_velocity()
 
         if get_collision_direction(player, self) != "A":
-            self.collide(player)
-            player.change_health(-1)
+
+            if self.get_squished_time() == -1:
+                self.collide(player)
+                player.change_health(-1)
 
             if(player_vx > 0):
                 player.set_velocity([-100,player_vy])
@@ -1085,26 +1233,34 @@ class Mushroom(Mob):
         else:
             if self._squished_animation_time == -1:
                 self._squished_animation_time = 100
-            self.set_velocity((0,0))
-            player.set_velocity([player_vx, 200])
-
+            self.set_tempo(0)
+            player.set_velocity([player_vx, -200])
 
     def collide(self, entity):
         """
         Deal with mushroom turn to opposite when collide with other things
         Args:
             entity: the entity mushroom collide with.
-
         """
-        collide_direction = get_collision_direction(entity, self)
+        
+        collide_direction = get_collision_direction(self, entity)
         if  collide_direction == "R" or collide_direction == "L":
             self.set_tempo(-self.get_tempo())
 
     def get_squished_time(self):
+        """
+        Get the remaining squish animate time 
+        Returns(int): squish time left
+        """
+        
         return self._squished_animation_time
 
 
     def step(self, time_delta, game_data):
+        """
+        Update the mushroom status
+        """
+
         super().step(time_delta, game_data)
         world,player = game_data
         if self._squished_animation_time >= 1:
@@ -1133,20 +1289,23 @@ class Star(DroppedItem):
     """
     Player would be vincible after picking up a star.
     """
+    
     _id = "star"
 
     def collect(self, player: Player):
         """
         Set player to invincible when star is collected.
         Args:
-            player:
+            player(Player): the player in the game
         """
+        
         player.invincible()
 
 class Goal(Block):
     """
     A class for the goal in the game.
     """
+    
     _id = "goal"
     _cell_size = (1, 1)
 
@@ -1154,9 +1313,10 @@ class Goal(Block):
         """
         When a goal is activated, the game should load another level and record the highscore for current level.
         Args:
-            app:
-            trigger_id:
+            app(MarioApp): the main game 
+            trigger_id(str): the goal id 
         """
+        
         now_level_line = 0
         for line_content in app.config_file_content:
             if line_content.find('==' + app._level + '==')!= -1:
@@ -1182,6 +1342,7 @@ class Flag(Goal):
     """
     Player go to next level once they collide with a flag and would get bounce health if they land on top of it.
     """
+    
     _id = "flag"
     _cell_size = GOAL_SIZES.get(_id)
 
@@ -1189,6 +1350,7 @@ class Flag(Goal):
         """
         callback when user hit a flag
         """
+        
         if get_collision_direction(player, self) == "A":
             player.change_health(1)
         super().triger(app,"goal")
@@ -1197,6 +1359,7 @@ class Tunnel(Goal):
     """
     When player pressed 'DOWN' on top of the tunnel, they will go to bounce level
     """
+    
     _id = "tunnel"
     _cell_size = GOAL_SIZES.get(_id)
 
@@ -1204,8 +1367,9 @@ class Tunnel(Goal):
         """
         When player hit with a tunnel , check the direction.
         Args:
-            player:
+            player(Player): the player in the game
         """
+        
         if get_collision_direction(player, self) == "A":
             player.on_tunnel(self)
 
@@ -1213,6 +1377,7 @@ class Switch(Block):
     """
        When player land on top of the switch ,the block with in arange to the switch will disappear.
     """
+    
     _id = "switch"
     _invisible_radius = 64
 
@@ -1220,6 +1385,7 @@ class Switch(Block):
         """
         Construct a switch block and set the it to unpressed by signing pressed_time to 0
         """
+        
         super().__init__()
         self.pressed_time = 0
 
@@ -1227,6 +1393,7 @@ class Switch(Block):
         """
         callback when switch is hit by user
         """
+        
         world, player = data
 
         if get_collision_direction(player, self) == "A":
@@ -1239,12 +1406,14 @@ class Switch(Block):
         Args:
             time: set the switch pressed time to 10s
         """
+        
         self.pressed_time = time
 
     def step(self, time_delta, game_data):
         """
             Reduce pressed time by 1 count for the pressed time
         """
+        
         if self.is_pressed():
             self.pressed_time -= 1
 
@@ -1253,14 +1422,15 @@ class Switch(Block):
         Return if the switch is pressed
         Returns: int the left presssed time for the switch
         """
+        
         return self.pressed_time > 0
 
     def get_invisible_radius(self):
         """
         return the radius for blocking
         Returns: int the blocking radius
-
         """
+        
         return self._invisible_radius
 
 class MarioViewRenderer(ViewRenderer):
@@ -1270,28 +1440,37 @@ class MarioViewRenderer(ViewRenderer):
     def _draw_player(self, instance: Player, shape: pymunk.Shape,
                      view: tk.Canvas, offset: Tuple[int, int]) -> List[int]:
         # if instance.get_name() == "mario":
-            # if instance.is_invincible():
-            #     if shape.body.velocity.y != 0:
-            #         image = self.load_image("invicible_mario_jump" )
-            #     else:
-            #         if shape.body.velocity.x == 0:
-            #             image = self.load_image("invicible_mario_right")
-            #         elif shape.body.velocity.x > 0:
-            #             try:
-            #                 self.walk_animation_count = (self.walk_animation_count + 1) % 4
-            #             except:
-            #                 self.walk_animation_count = 0
-            #
-            #             image = self.load_image("invicible_mario_right"+str(self.walk_animation_count))
-            #         else:
-            #             image = self.load_image("invicible_mario_left"+str(self.walk_animation_count))
-            # else:
-        if shape.body.velocity.x >= 0:
-            image = self.load_image("mario_right")
-        else:
-            image = self.load_image("mario_left")
-        # pass
-
+        #     if instance.is_invincible():
+        #         if shape.body.velocity.y != 0:
+        #             image = self.load_image("invicible_mario_jump" )
+        #         else:
+        #             if shape.body.velocity.x == 0:
+        #                 image = self.load_image("invicible_mario_right")
+        #             elif shape.body.velocity.x > 0:
+        #                 try:
+        #                     self.walk_animation_count = (self.walk_animation_count + 1) % 4
+        #                 except:
+        #                     self.walk_animation_count = 0
+        #
+        #                 image = self.load_image("invicible_mario_right"+str(self.walk_animation_count))
+        #             else:
+        #                 image = self.load_image("invicible_mario_left"+str(self.walk_animation_count))
+        #     else:
+        #         if shape.body.velocity.y != 0:
+        #             image = self.load_image("mario_jump")
+        #         else:
+        #             if shape.body.velocity.x == 0:
+        #                 image = self.load_image("mario_right")
+        #             elif shape.body.velocity.x > 0:
+        #                 try:
+        #                     self.walk_animation_count = (self.walk_animation_count + 1) % 4
+        #                 except:
+        #                     self.walk_animation_count = 0
+        #
+        #                 image = self.load_image("mario_right" + str(self.walk_animation_count))
+        #             else:
+        #                 image = self.load_image("mario_left" + str(self.walk_animation_count))
+        image = self.load_image("mario_right" )
         return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
                                   image=image, tags="player")]
 
@@ -1349,7 +1528,7 @@ class MarioViewRenderer(ViewRenderer):
 
         return [view.create_image(shape.bb.center().x + offset[0], shape.bb.center().y,
                                   image=image, tags="mob")]
-
+    #
 # self.sprite_loader = SpriteSheetLoader()
 # self.sprite_loader.cut_from
 class SpriteSheetLoader():
